@@ -18,6 +18,7 @@ const App = {
 
 // ===== Module Registry =====
 const ModuleRegistry = {
+    zero:              window.ModuleZero              || null,
     beginner:          window.ModuleBeginner          || null,
     earlyIntermediate: window.ModuleEarlyIntermediate || null,
     intermediate:      window.ModuleIntermediate      || null,
@@ -27,9 +28,10 @@ const ModuleRegistry = {
     extra:             window.ModuleExtra             || null
 };
 
-const ModuleOrder = ['beginner', 'earlyIntermediate', 'intermediate', 'lowlevel', 'advanced', 'expert', 'extra'];
+const ModuleOrder = ['zero', 'beginner', 'earlyIntermediate', 'intermediate', 'lowlevel', 'advanced', 'expert', 'extra'];
 
 const ModuleNames = {
+    zero: 'Zero',
     beginner: 'Beginner',
     earlyIntermediate: 'Early Intermediate',
     intermediate: 'Intermediate',
@@ -40,6 +42,7 @@ const ModuleNames = {
 };
 
 const ModuleColors = {
+    zero: '#e879f9',
     beginner: '#4ade80',
     earlyIntermediate: '#60a5fa',
     intermediate: '#a78bfa',
