@@ -53,7 +53,24 @@ const ModuleColors = {
 document.addEventListener('DOMContentLoaded', () => {
     loadProgress();
     renderNavigation();
-    renderDashboard();
+    
+    // Restore last visited location
+    const lastView = localStorage.getItem('cMasteryLastView');
+    const lastModule = localStorage.getItem('cMasteryLastModule');
+    const lastLesson = localStorage.getItem('cMasteryLastLesson');
+
+    if (lastView === 'lesson' && lastModule && lastLesson) {
+        renderLesson(lastModule, lastLesson);
+    } else if (lastView === 'practice' && lastModule) {
+        renderPractice(lastModule);
+    } else if (lastView === 'quiz' && lastModule) {
+        renderQuiz(lastModule);
+    } else if (lastView === 'exam' && lastModule) {
+        renderExam(lastModule);
+    } else {
+        renderDashboard();
+    }
+
     setupEventListeners();
     updateStreak();
     applyTheme();
@@ -237,7 +254,11 @@ function showView(viewName) {
     document.getElementById(viewName + 'View').classList.remove('hidden');
     App.currentView = viewName;
     
-    // Reset scroll to top when switching views
+    // Save state for next visit
+    localStorage.setItem('cMasteryLastView', viewName);
+    if (App.currentModule) localStorage.setItem('cMasteryLastModule', App.currentModule);
+    if (App.currentLesson) localStorage.setItem('cMasteryLastLesson', App.currentLesson);
+    
     window.scrollTo(0, 0);
 }
 
@@ -679,82 +700,76 @@ function submitExam() {
 }
 
 // ===== Code Editor =====
-function copyCode(btn) {
-    const codeBlock = btn.closest('.code-block');
-    const code = codeBlock.querySelector('code').textContent;
-    navigator.clipboard.writeText(code).then(() => {
-        btn.textContent = 'Copied!';
-        setTimeout(() => btn.textContent = 'Copy', 1500);
-    });
-}
+let editorInstance = null;
 
 function editCode(btn) {
     const codeBlock = btn.closest('.code-block');
     const code = codeBlock.querySelector('code').textContent;
-    document.getElementById('codeEditor').value = code;
-    document.getElementById('outputArea').textContent = '// Output will appear here';
+    
     document.getElementById('codeModal').classList.remove('hidden');
+    document.getElementById('outputArea').textContent = '// Output will appear here';
+    
+    // Initialize CodeMirror only once
+    if (!editorInstance) {
+        editorInstance = CodeMirror.fromTextArea(document.getElementById('codeEditor'), {
+            mode: "text/x-csrc",
+            theme: document.documentElement.getAttribute('data-theme') === 'light' ? 'default' : 'dracula',
+            lineNumbers: true,
+            indentUnit: 4,
+            matchBrackets: true,
+            viewportMargin: Infinity
+        });
+    }
+    
+    editorInstance.setValue(code);
+    
+    // Force refresh to fix rendering glitch when opening inside a hidden modal
+    setTimeout(() => editorInstance.refresh(), 50);
 }
 
-function runCode() {
-    const code = document.getElementById('codeEditor').value;
-    const output = simulateOutput(code);
-    document.getElementById('outputArea').textContent = output;
+async function runCode() {
+    const code = editorInstance.getValue();
+    const outputArea = document.getElementById('outputArea');
+    outputArea.textContent = "Compiling and running... (Please wait)";
+    
+    try {
+        // Language ID 50 is C (GCC 9.2.0) on Judge0 API
+        const response = await fetch("https://ce.judge0.com/submissions?base64_encoded=false&wait=true", {
+            method: "POST",
+            headers: {
+                "Content-Type": "application/json",
+                "Accept": "application/json"
+            },
+            body: JSON.stringify({
+                source_code: code,
+                language_id: 50 
+            })
+        });
+
+        if (!response.ok) throw new Error("Server rejected the request.");
+
+        const data = await response.json();
+
+        // Handle compilation errors, runtime errors, or standard output
+        if (data.compile_output) {
+            outputArea.textContent = "Compilation Error:\n" + data.compile_output;
+        } else if (data.stderr) {
+            outputArea.textContent = "Runtime Error:\n" + data.stderr;
+        } else if (data.stdout !== null) {
+            outputArea.textContent = data.stdout || "// Program finished with no output";
+        } else {
+            outputArea.textContent = data.message || "// Unknown execution state";
+        }
+    } catch (error) {
+        outputArea.textContent = "// Error connecting to execution server.\n// Note: Judge0 public API may be rate-limited.";
+    }
 }
 
 function resetCode() {
-    document.getElementById('codeEditor').value = '';
+    if (editorInstance) {
+        editorInstance.setValue('');
+    }
     document.getElementById('outputArea').textContent = '// Output will appear here';
-}
-
-function simulateOutput(code) {
-    let output = '// Simulated Output\n\n';
-    
-    // Extract printf statements
-    const printfRegex = /printf\s*\(\s*"([^"]*)"(?:\s*,\s*([^)]+))?\s*\)\s*;/g;
-    let match;
-    
-    while ((match = printfRegex.exec(code)) !== null) {
-        let str = match[1];
-        const args = match[2] ? match[2].split(',').map(a => a.trim()) : [];
-        
-        // Handle format specifiers
-        let argIndex = 0;
-        str = str.replace(/%[diouxXeEfFgGaAcspn%]/g, (spec) => {
-            if (spec === '%%') return '%';
-            if (argIndex < args.length) {
-                const arg = args[argIndex++];
-                // Simulate values
-                if (arg.match(/^\d+$/)) return arg;
-                if (arg.match(/^'.'$/)) return arg.charAt(1);
-                if (arg === 'x' || arg === 'y' || arg === 'z' || arg.match(/^[a-z]$/i)) {
-                    return '[' + arg + '-value]';
-                }
-                return arg;
-            }
-            return '[value]';
-        });
-        
-        // Handle escape sequences
-        str = str.replace(/\\n/g, '\n');
-        str = str.replace(/\\t/g, '\t');
-        str = str.replace(/\\"/g, '"');
-        
-        output += str;
-    }
-    
-    // Check for specific patterns
-    if (code.includes('malloc') || code.includes('calloc')) {
-        output += '\n// Memory allocated successfully (simulated)';
-    }
-    if (code.includes('free(')) {
-        output += '\n// Memory freed (simulated)';
-    }
-    if (code.includes('fopen')) {
-        output += '\n// File opened (simulated)';
-    }
-    
-    return output || '// No output detected';
 }
 
 // ===== Event Listeners =====

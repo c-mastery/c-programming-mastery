@@ -1449,3 +1449,15 @@ a:hover { color: var(--accent-dim); }
         transition-duration: 0.01ms !important;
     }
 }
+
+.CodeMirror {
+    height: auto;
+    min-height: 250px;
+    border-radius: var(--radius-sm);
+    font-family: 'Consolas', monospace;
+    font-size: 0.875rem;
+    border: 1px solid var(--border);
+}
+.CodeMirror-scroll {
+    min-height: 250px;
+}
