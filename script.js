@@ -769,7 +769,7 @@ async function runCode() {
     const code = editorInstance.getValue();
     const outputArea = document.getElementById('outputArea');
     outputArea.textContent = "Compiling and running... (Please wait)";
-    
+
     try {
         // Language ID 50 is C (GCC 9.2.0) on Judge0 API
         const response = await fetch("https://ce.judge0.com/submissions?base64_encoded=false&wait=true", {
@@ -780,26 +780,67 @@ async function runCode() {
             },
             body: JSON.stringify({
                 source_code: code,
-                language_id: 50 
+                language_id: 50
             })
         });
 
-        if (!response.ok) throw new Error("Server rejected the request.");
+        // If the API itself is unreachable or rate-limiting us, surface a clear message
+        if (!response.ok) {
+            if (response.status === 429) {
+                outputArea.textContent = "// Rate limit reached on the Judge0 API.\n// Please wait a moment and try again.";
+            } else {
+                outputArea.textContent = `// Execution server returned HTTP ${response.status}.\n// Please try again shortly.`;
+            }
+            return;
+        }
 
         const data = await response.json();
 
-        // Handle compilation errors, runtime errors, or standard output
-        if (data.compile_output) {
-            outputArea.textContent = "Compilation Error:\n" + data.compile_output;
-        } else if (data.stderr) {
-            outputArea.textContent = "Runtime Error:\n" + data.stderr;
-        } else if (data.stdout !== null) {
-            outputArea.textContent = data.stdout || "// Program finished with no output";
+        // Judge0 status IDs:
+        //  1 = In Queue, 2 = Processing, 3 = Accepted (success)
+        //  4 = Wrong Answer, 5 = Time Limit Exceeded, 6 = Compilation Error
+        //  7–12 = Runtime Errors (SIGSEGV=11, SIGFPE=8, SIGABRT=7, etc.)
+        //  13 = Internal Error, 14 = Exec Format Error
+        const statusId = data.status?.id;
+
+        if (statusId === 6 || data.compile_output) {
+            // Compilation error — always has compile_output
+            outputArea.textContent = "Compilation Error:\n" + (data.compile_output || "Unknown compilation failure.");
+
+        } else if (statusId === 5) {
+            outputArea.textContent = "// Time Limit Exceeded.\n// Your program ran too long and was terminated.";
+
+        } else if (statusId >= 7 && statusId <= 12) {
+            // Runtime error (segfault, SIGFPE for div-by-zero, etc.)
+            const signal = data.status?.description || "Runtime Error";
+            let msg = `Runtime Error: ${signal}\n`;
+            if (data.stderr) {
+                msg += data.stderr;
+            } else {
+                // Provide a helpful hint when no stderr is produced (common with UB/segfaults)
+                msg += "// No additional output.\n// Possible causes: segmentation fault, division by zero,\n// stack overflow, or undefined behaviour.";
+            }
+            outputArea.textContent = msg;
+
+        } else if (statusId === 13 || statusId === 14) {
+            outputArea.textContent = `// Execution server internal error (status ${statusId}).\n// Try again or simplify your program.`;
+
+        } else if (statusId === 3 || data.stdout !== undefined) {
+            // Accepted / successful run
+            // stderr can still contain warnings even on success — show both
+            let out = "";
+            if (data.stdout) out += data.stdout;
+            if (data.stderr) out += (out ? "\n" : "") + "Warnings / stderr:\n" + data.stderr;
+            outputArea.textContent = out || "// Program finished with no output.";
+
         } else {
-            outputArea.textContent = data.message || "// Unknown execution state";
+            // Fallback: show whatever the API gave us
+            outputArea.textContent = data.message || `// Unknown execution state (status id: ${statusId ?? "none"}).`;
         }
+
     } catch (error) {
-        outputArea.textContent = "// Error connecting to execution server.\n// Note: Judge0 public API may be rate-limited.";
+        // Only genuine network failures (DNS, CORS, offline) land here
+        outputArea.textContent = "// Could not reach the execution server.\n// Check your internet connection and try again.\n// (" + error.message + ")";
     }
 }
 
