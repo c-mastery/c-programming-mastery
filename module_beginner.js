@@ -5,11 +5,11 @@ const ModuleBeginner = {
         {
             id: "structure",
             title: "Anatomy of a C Program",
-            explanation: "Before writing a single line of code, you need to understand what you're looking at. C programs have a very specific structure, and unlike some modern languages that are forgiving when you forget things, C will refuse to compile and give you errors that feel like personal attacks. Let's avoid that.",
+            explanation: "Every C program, regardless of its size or complexity, follows the same fundamental structure. This is not arbitrary ceremony — every piece of that structure exists because something in the compilation process or runtime environment requires it. The reason C has <code>main()</code> as its entry point is that the operating system's program loader needs to know exactly where to jump when it starts your program. The reason you <code>#include</code> headers is that the compiler compiles one file at a time and needs to see function declarations before it can check your calls against them. Understanding <em>why</em> each piece exists will make the structure feel inevitable rather than arbitrary.",
             sections: [
                 {
                     title: "The Hello World Breakdown",
-                    content: "Every programming tutorial in existence starts with 'Hello, World!' and we're not going to be different. But unlike most tutorials, we're actually going to explain every single character in this program — because every single character matters in C.",
+                    content: "Every programming tutorial starts with 'Hello, World!' — not because it is interesting, but because it is the smallest possible complete C program, and every part of it is necessary. There are no optional decorations. The value of this exercise is not in the output — it is in understanding why each of the six lines exists and what happens if you remove any one of them.",
                     code: `#include <stdio.h>
 
 int main() {
@@ -22,12 +22,12 @@ int main() {
                 {
                     title: "Line-by-Line Explanation",
                     points: [
-                        "<strong>#include &lt;stdio.h&gt;</strong>: This is a preprocessor directive. Think of it as the very first thing you do when you arrive at work — you go get your tools. <code>stdio.h</code> is a header file that contains the definitions for 'Standard Input/Output' functions. Without this line, the compiler sees <code>printf</code> and has absolutely no idea what you're talking about. It will tell you so, loudly.",
-                        "<strong>int main()</strong>: This defines the main function — the entry point of your entire program. When the operating system runs your program, it looks for <code>main</code> specifically. If it doesn't find it, your program won't run. The <code>int</code> before it means this function will hand back an integer value when it finishes. Think of it like a contractor who, when done with a job, hands you a report: '0 means everything went fine'.",
-                        "<strong>{ }</strong>: These curly braces define a block of code — everything that belongs to <code>main</code>. Open brace <code>{</code> says 'we're starting', close brace <code>}</code> says 'we're done'. Missing one of these is probably the most common beginner mistake after forgetting semicolons. The compiler error will make you feel like you've broken reality.",
-                        "<strong>printf(...)</strong>: This is a function call. You are telling the program: 'go run the function named printf, and pass it this text'. The text inside the double quotes is called a string literal — it's taken exactly as written. The semicolon <code>;</code> at the end is mandatory. Every statement in C ends with one. Think of it as a period in a sentence. Forget it and the compiler will complain about the next line instead, which is extremely confusing.",
-                        "<strong>\\n</strong>: This is called an escape sequence. Since you can't actually press Enter inside a string, you write <code>\\n</code> to represent a newline character. Without it, the next thing printed will appear right after 'World!' on the same line, which looks terrible.",
-                        "<strong>return 0</strong>: This ends <code>main</code> and reports back to the operating system. Zero means 'everything went fine, no problems'. Any non-zero value conventionally signals that something went wrong. You won't notice the difference in a simple program, but once you start writing scripts and shell commands, this becomes very important."
+                        "<strong>#include &lt;stdio.h&gt;</strong>: This tells the preprocessor to paste the contents of the <code>stdio.h</code> header file into your source before compilation begins. Why is this necessary? The compiler processes one file at a time and must see a declaration of any function before you call it. <code>printf</code> is defined in the C standard library — a separately compiled binary — but its signature (what arguments it takes, what it returns) lives in <code>stdio.h</code>. Without this line, the compiler sees the name <code>printf</code> and has no idea what it is, how many arguments it expects, or what types those should be.",
+                        "<strong>int main()</strong>: This defines the function the operating system calls when it starts your program. Every C program must have exactly one <code>main</code>. When you run a program, the OS loader places it in memory and jumps to the address of <code>main</code>. The <code>int</code> return type is because <code>main</code> returns an exit status code to the shell — 0 means success, anything else signals an error. Without <code>main</code>, the linker cannot produce a runnable executable.",
+                        "<strong>{ }</strong>: Curly braces delimit a block — a group of statements that belong together. The block after <code>main()</code> is the function body: everything the program actually does. Every opening brace must have a matching closing brace. One missing brace typically causes a cascade of confusing errors as the compiler loses track of what belongs where.",
+                        "<strong>printf(...)</strong>: A function call — you are telling the runtime to execute the function named <code>printf</code>, passing it the string <code>\"Hello, World!\\n\"</code> as an argument. <code>printf</code> is short for 'print formatted' and is the C standard library's primary output function. The semicolon terminates the statement — every statement in C ends with one, just as every sentence in English ends with a period. Forget it and the compiler will report an error on the next line, not this one, which is disorienting.",
+                        "<strong>\\n</strong>: Inside a string, the backslash introduces an <em>escape sequence</em> — a way to represent characters that cannot be typed literally. <code>\\n</code> represents a newline character. Without it, after printing 'Hello, World!' the cursor stays on the same line, and the shell's prompt appears immediately after your text.",
+                        "<strong>return 0</strong>: Exits <code>main</code> and returns the value 0 to the operating system. This is the exit status — shells use it to check if the program succeeded. By convention, 0 means success and any non-zero value indicates an error. Scripts that call your program can inspect this with <code>$?</code> in Bash."
                     ]
                 },
                 {
@@ -76,19 +76,25 @@ int main() {
         {
             id: "printf",
             title: "Printing to the Screen",
-            explanation: "Output is how your program communicates results to the outside world. In C, the primary weapon for this is <code>printf</code> — short for 'Print Formatted'. It's one of the most powerful and most used functions in all of C, and understanding it well will serve you for your entire C career.",
+            explanation: "Before your program can communicate anything useful, it needs to produce output. In C, virtually all terminal output goes through <code>printf</code> — and <code>printf</code> is considerably more powerful than 'print some text'. The 'f' in <code>printf</code> stands for <em>formatted</em>: it can compose complex output strings by inserting variable values, controlling decimal precision, aligning columns, and representing numbers in different bases — all in a single call. The format string mini-language you learn here will follow you for your entire C career, because the same syntax appears in <code>fprintf</code> (writing to files), <code>sprintf</code> (writing to strings), <code>scanf</code> (reading input), and dozens of other standard library functions.",
             sections: [
                 {
                     title: "Basic Printing",
-                    content: "The simplest use: put text in double quotes, and <code>printf</code> will put it on screen. You can call it as many times as you want. Each call picks up right where the last one left off — unless you add a <code>\\n</code> to create a new line.",
+                    content: "The simplest use of <code>printf</code> is passing a string literal — text in double quotes. The text is printed exactly as written. Notice that <code>printf</code> does not add a newline at the end automatically. If you call it twice in a row without <code>\\n</code>, the second output appears on the same line as the first. This is intentional — it lets you build up a line of output across multiple calls — but it surprises everyone the first time they see it.",
                     code: `#include <stdio.h>
 
 int main() {
-    printf("C is powerful.\\n");
-    printf("C is fast.\\n");
+    // Each printf picks up where the last one left off
+    printf("C is ");
+    printf("powerful ");
+    printf("and fast.\\n");  // Only this one adds a newline
+
+    // With newlines, each message gets its own line
+    printf("Line one.\\n");
+    printf("Line two.\\n");
     return 0;
 }`,
-                    output: "C is powerful.\nC is fast."
+                    output: "C is powerful and fast.\nLine one.\nLine two."
                 },
                 {
                     title: "Escape Sequences",
@@ -141,52 +147,61 @@ int main() {
         {
             id: "variables",
             title: "Variables and Data Types",
-            explanation: "Variables are how programs remember things. Every piece of data your program works with — a user's age, a product price, someone's initial — needs to live somewhere in memory. In C, you're responsible for telling the compiler exactly what kind of data you plan to store. This is called static typing, and it exists because C wants to know precisely how much memory to reserve and how to interpret the raw bytes sitting at that location.",
+            explanation: "A variable is a named location in your computer's RAM where you store a value. Programs compute things — and to compute anything, they need to hold intermediate results somewhere. Without variables, every calculation would have to happen in a single expression with no memory of previous results, which is impossibly restrictive. In C specifically, you must declare what type of data each variable will hold before you use it. This is not bureaucracy — it is the compiler asking 'how many bytes do I need to reserve, and how should I interpret those bytes?' A 32-bit pattern stored in memory could be a positive integer, a negative integer, a float, four ASCII characters, or anything else — the type is what tells the compiler which interpretation to use.",
             sections: [
                 {
                     title: "The 'Box' Analogy",
-                    content: "The classic mental model for a variable is a labelled box in a warehouse (the warehouse being your computer's RAM). Every variable has three aspects:",
+                    content: "RAM is a long sequence of bytes, each at a numbered address. When you declare a variable, the compiler picks an unused address (or assigns one on the stack), reserves the right number of bytes for that type, and associates your chosen name with that address. From that point on, when you read or write the variable, the compiler translates that into a load or store instruction targeting the specific address. Every variable has three distinct stages in its lifecycle:",
                     points: [
-                        "<strong>Declaration</strong>: Telling the warehouse, 'I need a box that holds an integer, label it <code>age</code>'. In C: <code>int age;</code>. The computer finds an empty spot in memory and reserves it. The value inside at this point is undefined — it's whatever garbage was in that memory before. Do not assume it's zero.",
-                        "<strong>Initialization</strong>: Actually putting a value in the box. In C: <code>age = 25;</code>. Now the box has a known, useful value.",
-                        "<strong>Definition</strong>: Declaration and initialization in one step — the normal way to do it. In C: <code>int age = 25;</code>. Always prefer this. Reading an uninitialized variable is undefined behavior, meaning C gives itself permission to do literally anything — crash, return garbage, or silently produce wrong answers."
+                        "<strong>Declaration</strong>: <code>int age;</code> — tells the compiler 'reserve space for an integer and call it <code>age</code>'. At this point, <code>age</code> holds whatever bytes happened to be at that memory address before you arrived — garbage. Reading it at this point is undefined behaviour in C, meaning the compiler is allowed to do anything: return garbage, crash, or produce wrong answers silently.",
+                        "<strong>Initialization</strong>: <code>age = 25;</code> — writes a value into the reserved space. Only after initialization is the variable safe to read.",
+                        "<strong>Declaration + initialization in one step</strong>: <code>int age = 25;</code> — this is the normal form. Always prefer it. An uninitialized variable is a loaded weapon.",
+                        "There is also a difference between a <em>declaration</em> (saying a variable exists) and a <em>definition</em> (actually creating it with storage). For local variables, these are always the same thing. The distinction matters for global variables in multi-file programs, covered in the Intermediate module."
                     ]
                 },
                 {
                     title: "Primary Data Types",
-                    content: "C has a handful of built-in types. Each one tells the compiler how many bytes to reserve and how to interpret those bytes. Choosing the right type isn't just about correctness — it affects memory usage, performance, and whether your math will be accurate.",
+                    content: "C's built-in types represent the fundamental categories of data the CPU can natively process. Each type specifies exactly two things: how many bytes to reserve, and how to interpret those bytes. The distinction is crucial — the same 4 bytes in memory could mean a 32-bit signed integer (possibly negative), an unsigned 32-bit integer (only non-negative), or a 32-bit IEEE 754 float. The type you choose determines which of those meanings applies.",
                     code: `#include <stdio.h>
 
 int main() {
-    // Integer: Whole numbers (positive or negative)
+    // int: whole numbers, positive or negative
+    // Typically 4 bytes; range roughly -2.1 billion to +2.1 billion
     int age = 25;
+    int temperature_c = -15;    // negative values work fine
+
+    // float: decimal numbers, ~6-7 significant digits of precision
+    float price = 19.99f;       // note the 'f' suffix — without it, it's a double
     
-    // Float: Decimal numbers (approx 6-7 digits precision)
-    float temperature = 98.6;
-    
-    // Double: Larger decimal numbers (approx 15 digits precision)
+    // double: decimal numbers, ~15-16 significant digits
+    // Default for decimal literals; prefer double over float in most code
     double pi = 3.14159265358979;
     
-    // Char: A single character (enclosed in single quotes)
+    // char: a single character, stored as its ASCII code (1 byte)
+    // 'A' is stored as the integer 65 — they are literally the same thing
     char grade = 'A';
-    
-    printf("Age: %d\\n", age);
-    printf("Temp: %.1f\\n", temperature);
-    printf("Pi: %.14f\\n", pi);
-    printf("Grade: %c\\n", grade);
+    char newline_char = '\\n';   // escape sequences work in char literals too
+
+    printf("Age: %d, Temperature: %d\\n", age, temperature_c);
+    printf("Price: %.2f\\n", price);
+    printf("Pi to 14 places: %.14f\\n", pi);
+    printf("Grade: %c (ASCII %d)\\n", grade, grade); // same value, two formats
     
     return 0;
 }`,
-                    output: "Age: 25\nTemp: 98.6\nPi: 3.14159265358979\nGrade: A"
+                    output: "Age: 25, Temperature: -15\nPrice: 19.99\nPi to 14 places: 3.14159265358979\nGrade: A (ASCII 65)"
                 },
                 {
                     title: "Type Sizes and Why They Matter",
-                    content: "Different types use different amounts of memory, which directly controls what values they can hold. Running out of a type's range doesn't crash your program — it just silently wraps around to a completely wrong value. This is called overflow, and it's one of C's most beloved silent killers.",
+                    content: "Every type has a fixed size in bytes, and that size determines both the range of values it can hold and how it behaves at the extremes. This is not just trivia — overflow (exceeding the maximum value) does not produce an error in C. For unsigned types it wraps silently to zero; for signed types it is undefined behaviour. Real bugs in real software have been caused by a counter that was supposed to count to 4 billion using a 32-bit signed integer that ran out at 2.1 billion, or a loop index that wrapped from a huge positive number back to zero and corrupted memory. Knowing the limits of each type is part of writing correct C.",
                     points: [
-                        "<code>char</code>: 1 byte. Can store a small number (-128 to 127) or, more usefully, an ASCII character. 'A' is stored as 65. They're literally the same thing at the byte level.",
-                        "<code>int</code>: Usually 4 bytes. Can hold values from roughly -2.1 billion to +2.1 billion. If you need something outside that range, you need a different type (<code>long</code> or <code>long long</code>).",
-                        "<code>float</code>: 4 bytes. Stores decimal numbers with about 6-7 significant digits of precision. Fine for most everyday use, but not for financial calculations or anything where small rounding errors compound.",
-                        "<code>double</code>: 8 bytes. 'Double precision' float with about 15-16 significant digits. When in doubt between <code>float</code> and <code>double</code>, use <code>double</code>. The extra 4 bytes are almost always worth it."
+                        "<code>char</code>: 1 byte. Stores either a small integer (-128 to 127 for signed char, 0 to 255 for unsigned char) or an ASCII character code. The character 'A' and the integer 65 are the same byte.",
+                        "<code>short</code>: Typically 2 bytes. Range -32,768 to 32,767. Rarely used directly — mostly in data structures where space is tight.",
+                        "<code>int</code>: Typically 4 bytes on modern systems. Range approximately -2.1 billion to +2.1 billion. The default integer type for general use.",
+                        "<code>long</code>: At least 4 bytes, often 8 bytes on 64-bit Linux/macOS. Use <code>long long</code> if you need to be certain of 8 bytes.",
+                        "<code>float</code>: 4 bytes, IEEE 754 single precision. About 6–7 significant decimal digits. Small rounding errors are inherent — never use for money or accumulated computations.",
+                        "<code>double</code>: 8 bytes, IEEE 754 double precision. About 15–16 significant decimal digits. The default floating-point type. Use <code>double</code> unless you have a specific reason for <code>float</code>.",
+                        "<strong>The overflow trap</strong>: An <code>int</code> holding value 2,147,483,647 (INT_MAX) that you add 1 to does not become 2,147,483,648 — it invokes undefined behaviour and on most platforms wraps to -2,147,483,648 (INT_MIN). This has caused real security vulnerabilities."
                     ],
                     warning: "Using the wrong format specifier (e.g., <code>%d</code> for a float) produces garbage output and is technically undefined behavior. The computer reads the raw bytes of your float and interprets them as an integer — the result is some random-looking number. Always match your format specifiers to your variable types."
                 },
@@ -509,95 +524,172 @@ int main() {
         {
             id: "conditionals",
             title: "Conditional Statements",
-            explanation: "A program that does the exact same thing every single time, regardless of input, is barely a program — it's just a very complicated print statement. Conditionals let your program make decisions: take different actions depending on the data. This is the beginning of actual logic.",
+            explanation: "A program that always does the same thing regardless of its inputs is not useful. Real programs make decisions — show a login screen if the user is not authenticated, display an error if a file cannot be opened, take a different code path depending on the user's choice. Conditional statements are the mechanism for this: they allow execution to branch, taking one path or another based on whether a condition evaluates to true or false. In C, any non-zero integer value is 'true' and zero is 'false' — there is no separate Boolean type required (though <code>&lt;stdbool.h&gt;</code> provides one for readability). This numeric definition of truth is a direct consequence of C's low-level nature and appears constantly in real C code.",
             sections: [
                 {
                     title: "The 'if' Statement",
-                    content: "The most fundamental decision-making tool. The condition inside the parentheses is evaluated — if it's true (any non-zero value), the block of code inside the braces runs. If it's false (zero), the block is skipped entirely.",
+                    content: "The <code>if</code> statement is the foundation of all decision-making in C. The condition inside the parentheses is evaluated as an integer: any non-zero result means 'true' and the body runs; zero means 'false' and it is skipped. This is not just a convention — it directly reflects how the CPU works. A comparison instruction like <code>a > b</code> sets a flag register, and the branch instruction reads that flag. Understanding that booleans are just integers in C explains many things that would otherwise look like bizarre language quirks.",
                     code: `#include <stdio.h>
 
 int main() {
-    int age = 20;
-    
-    if (age >= 18) {
-        printf("You are an adult.\\n");
+    int temperature = 38;
+
+    // Basic if: runs the block only when condition is true
+    if (temperature > 37) {
+        printf("Fever detected: %.0d degrees.\\n", temperature);
     }
-    
+
+    // The condition is just an integer expression — zero = false, non-zero = true
+    int x = 5;
+    if (x)          printf("x is non-zero (true)\\n");   // 5 is non-zero
+    if (!x)         printf("x is zero (false)\\n");       // !5 = 0, skipped
+    if (x - 5)      printf("x minus 5 is non-zero\\n");  // 0, skipped
+    if (!(x - 5))   printf("x is exactly 5\\n");          // !0 = 1, runs
+
     return 0;
 }`,
-                    output: "You are an adult."
+                    output: "Fever detected: 38 degrees.\nx is non-zero (true)\nx is exactly 5"
                 },
                 {
                     title: "Comparison Operators",
-                    content: "These operators compare two values and produce either true (1) or false (0). Simple concept, but one of them is responsible for more beginner bugs than almost anything else in C.",
+                    content: "Comparison operators evaluate two values and produce either 1 (true) or 0 (false) as an integer result. This integer result is then used by <code>if</code>, <code>while</code>, and other control structures. The most important thing to memorise here is the difference between <code>=</code> and <code>==</code> — this single character difference is responsible for one of the most common bugs in C.",
                     points: [
-                        "<code>==</code> Equal to. Checks if two values are the same. Note the DOUBLE equals sign.",
-                        "<code>!=</code> Not equal to. True when the values are different.",
-                        "<code>&gt;</code> Greater than.",
-                        "<code>&lt;</code> Less than.",
-                        "<code>&gt;=</code> Greater than or equal to.",
-                        "<code>&lt;=</code> Less than or equal to."
+                        "<code>==</code> Equal to. Checks if two values are identical. <strong>Double equals</strong> — it is a question.",
+                        "<code>!=</code> Not equal to. True when the values differ.",
+                        "<code>&gt;</code> Greater than. <code>a &gt; b</code> is true only if a is strictly larger than b.",
+                        "<code>&lt;</code> Less than. <code>a &lt; b</code> is true only if a is strictly smaller than b.",
+                        "<code>&gt;=</code> Greater than or equal to. True if a is larger or the same.",
+                        "<code>&lt;=</code> Less than or equal to. True if a is smaller or the same."
                     ],
-                    warning: "This deserves its own warning box: <code>=</code> is assignment. <code>==</code> is comparison. Writing <code>if (x = 5)</code> instead of <code>if (x == 5)</code> doesn't cause a compiler error — it assigns 5 to x, which evaluates to 5 (non-zero), which is always true. Your if-block runs every time, regardless of what x was. This bug is infuriating to track down. Many experienced programmers write comparisons backwards on purpose: <code>if (5 == x)</code> — that way, if you accidentally use one equals sign, the compiler will catch it (you can't assign to a literal)."
-                },
-                {
-                    title: "if-else",
-                    content: "Usually, when a condition is false, you don't just want to do nothing — you want to do something else. The <code>else</code> block handles the 'condition was false' case. Only one of the two blocks ever runs — it's one or the other, never both.",
                     code: `#include <stdio.h>
 
 int main() {
-    int score = 55;
-    
-    if (score >= 60) {
-        printf("Pass\\n");
-    } else {
-        printf("Fail\\n");
-    }
+    int a = 10, b = 20;
+
+    printf("a == b : %d\\n", a == b);  // 0 (false)
+    printf("a != b : %d\\n", a != b);  // 1 (true)
+    printf("a <  b : %d\\n", a <  b);  // 1 (true)
+    printf("a >  b : %d\\n", a >  b);  // 0 (false)
+    printf("a <= 10: %d\\n", a <= 10); // 1 (true — equal counts)
+    printf("a >= 10: %d\\n", a >= 10); // 1 (true — equal counts)
+
+    // Comparison results are just integers — you can store them
+    int is_adult = (a >= 18);
+    printf("is_adult: %d\\n", is_adult); // 0 (a=10, not adult)
+
     return 0;
 }`,
-                    output: "Fail"
+                    output: "a == b : 0\na != b : 1\na <  b : 1\na >  b : 0\na <= 10: 1\na >= 10: 1\nis_adult: 0",
+                    warning: "<code>=</code> is assignment — it changes a variable. <code>==</code> is comparison — it asks a question. Writing <code>if (x = 5)</code> does not compare x to 5 — it assigns 5 to x, then tests whether 5 is non-zero (always true). Your if-block runs unconditionally and x has been silently changed. The compiler may warn about this with <code>-Wall</code>, but it will compile. Always enable compiler warnings when developing."
+                },
+                {
+                    title: "if-else and else-if chains",
+                    content: "The <code>else</code> clause handles the case where the condition is false — only one branch ever runs. Chaining <code>else if</code> lets you test multiple conditions in sequence, stopping at the first one that matches. This is how you express multi-way decisions. The order matters: the conditions are tested top to bottom and only the first matching branch runs — the rest are skipped entirely.",
+                    code: `#include <stdio.h>
+
+int main() {
+    int score = 74;
+
+    // else-if chain: exactly ONE branch runs
+    if (score >= 90) {
+        printf("Grade: A\\n");
+    } else if (score >= 80) {
+        printf("Grade: B\\n");
+    } else if (score >= 70) {
+        printf("Grade: C\\n");  // This runs — 74 >= 70 is true
+    } else if (score >= 60) {
+        printf("Grade: D\\n");  // Skipped — already matched above
+    } else {
+        printf("Grade: F\\n");  // Skipped
+    }
+
+    // if-else for binary decisions
+    int balance = -50;
+    if (balance >= 0) {
+        printf("Account is in credit: $%d\\n", balance);
+    } else {
+        printf("Account is overdrawn by $%d\\n", -balance);
+    }
+
+    return 0;
+}`,
+                    output: "Grade: C\nAccount is overdrawn by $50",
+                    tip: "A common mistake is writing multiple separate <code>if</code> statements when you mean <code>else if</code>. Separate <code>if</code>s all get tested independently. An <code>else if</code> chain stops at the first match. For grade classification, separate <code>if</code>s would print 'C', 'D', and 'F' all for a score of 74 — because all three conditions would be true."
                 },
                 {
                     title: "Logical Operators",
-                    content: "Real conditions are often more complex than a single comparison. Logical operators let you combine multiple conditions into one.",
+                    content: "Real conditions are often combinations of multiple tests. Logical operators let you compose conditions: 'if the user is logged in AND has admin rights', 'if the temperature is too high OR the pressure is too low'. C's logical operators also have a performance optimisation built in called short-circuit evaluation — if the result of the whole expression is determined by the first operand alone, the second operand is never evaluated at all.",
                     points: [
-                        "<code>&&</code> (AND): Both conditions on the left AND right must be true for the whole thing to be true. If the left side is false, C doesn't even bother checking the right side (this is called 'short-circuit evaluation', and it matters).",
-                        "<code>||</code> (OR): At least one condition must be true. If the left side is already true, C skips checking the right side entirely.",
-                        "<code>!</code> (NOT): Flips the truth value. <code>!1</code> is <code>0</code>. <code>!0</code> is <code>1</code>. Useful for making conditions more readable: <code>if (!gameOver)</code> is cleaner than <code>if (gameOver == 0)</code>."
+                        "<code>&&</code> (AND): Both sides must be true. If the left side is false, the right side is <strong>not evaluated</strong> — the result is already known to be false. This is important: <code>if (ptr != NULL && ptr->value > 0)</code> is safe because if <code>ptr</code> is NULL the second part is skipped entirely.",
+                        "<code>||</code> (OR): At least one side must be true. If the left side is true, the right side is <strong>not evaluated</strong> — already known to be true.",
+                        "<code>!</code> (NOT): Flips the truth value. <code>!0</code> is 1, <code>!1</code> is 0, <code>!42</code> is also 0 (any non-zero). Useful for readable conditions: <code>if (!gameOver)</code> is clearer than <code>if (gameOver == 0)</code>."
                     ],
                     code: `#include <stdio.h>
-#include <stdbool.h>
 
 int main() {
     int age = 25;
-    bool hasLicense = true;
-    
-    if (age >= 18 && hasLicense) {
-        printf("You can drive.\\n");
+    int has_license = 1;   // 1 = true
+    int is_drunk = 0;      // 0 = false
+
+    // AND: all conditions must hold
+    if (age >= 18 && has_license && !is_drunk) {
+        printf("You may drive.\\n");
     }
-    
+
+    // Short-circuit: the second condition is ONLY evaluated if first is true
+    int x = 0;
+    // If x were NULL (pointer context), the second part would be skipped safely
+    if (x != 0 && (100 / x) > 2) {
+        printf("This is safe because short-circuit prevents division by zero.\\n");
+    } else {
+        printf("x is zero — short-circuit skipped the division.\\n");
+    }
+
+    // OR: any condition being true is enough
+    int is_weekend = 0;
+    int is_holiday = 1;
+    if (is_weekend || is_holiday) {
+        printf("Day off!\\n");
+    }
+
     return 0;
 }`,
-                    output: "You can drive."
+                    output: "You may drive.\nx is zero — short-circuit skipped the division.\nDay off!"
                 },
                 {
-                    title: "Switch Statement",
-                    content: "When you have a single variable and want to check it against a long list of specific values, a chain of <code>if-else if-else if</code> works but becomes tedious and hard to read. The <code>switch</code> statement is a cleaner alternative. It jumps directly to the matching <code>case</code> label.",
+                    title: "The switch Statement",
+                    content: "When you need to dispatch to one of many branches based on the exact integer value of a single expression, <code>switch</code> is cleaner and often faster than a long <code>else if</code> chain. The compiler can implement a <code>switch</code> as a jump table — an array of code addresses indexed by the switch value — making it O(1) regardless of how many cases there are. An <code>else if</code> chain is always O(n), testing conditions one by one. For large numbers of cases this difference is measurable.",
                     code: `#include <stdio.h>
 
 int main() {
     int day = 3;
-    
-    switch(day) {
-        case 1: printf("Monday"); break;
-        case 2: printf("Tuesday"); break;
-        case 3: printf("Wednesday"); break;
-        default: printf("Other day");
+
+    switch (day) {
+        case 1: printf("Monday\\n");    break;
+        case 2: printf("Tuesday\\n");   break;
+        case 3: printf("Wednesday\\n"); break;  // This runs
+        case 4: printf("Thursday\\n");  break;
+        case 5: printf("Friday\\n");    break;
+        case 6:
+        case 7: printf("Weekend!\\n");  break;  // Cases 6 and 7 share a body
+        default: printf("Invalid day\\n");      // No break needed on default
     }
+
+    // Demonstrating intentional fall-through (rare but legitimate)
+    int http_status = 404;
+    printf("HTTP %d: ", http_status);
+    switch (http_status / 100) {  // Switch on the hundreds digit
+        case 2: printf("Success\\n");      break;
+        case 3: printf("Redirect\\n");     break;
+        case 4: printf("Client error\\n"); break;
+        case 5: printf("Server error\\n"); break;
+        default: printf("Unknown\\n");
+    }
+
     return 0;
 }`,
-                    output: "Wednesday",
-                    warning: "The <code>break</code> at the end of each case is not optional — it's essential. Without it, after matching <code>case 3</code> and running its code, the program doesn't stop. It 'falls through' to <code>case 4</code>, <code>case 5</code>, and so on, running all of them until it hits a <code>break</code> or reaches the end of the switch. There are rare cases where fall-through is intentional, but most of the time it's a bug. Always write the <code>break</code>. Always include a <code>default</code> case too — it handles any value that doesn't match the listed cases, and skipping it means unexpected inputs are silently ignored."
+                    output: "Wednesday\nHTTP 404: Client error",
+                    warning: "The <code>break</code> at the end of each case is essential. Without it, after executing the matched case, execution <em>falls through</em> into the next case and keeps running — even if that next case's value didn't match. Forgetting a <code>break</code> is one of the most common C bugs. Always include a <code>default</code> case to handle unexpected values explicitly — silent ignorance of out-of-range inputs causes hard-to-find bugs."
                 }
             ]
         }
