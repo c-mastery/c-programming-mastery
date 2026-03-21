@@ -103,7 +103,7 @@ function updateStreak() {
         yesterday.setDate(yesterday.getDate() - 1);
         if (App.progress.lastVisit === yesterday.toDateString()) {
             App.progress.streak++;
-        } else if (App.progress.lastVisit !== today) {
+        } else {
             App.progress.streak = 1;
         }
         App.progress.lastVisit = today;
@@ -503,7 +503,7 @@ function highlightSyntax(code) {
 
     // 8. Restore the protected Strings and Comments
     parts.forEach((html, index) => {
-        result = result.replace(`__PH_${index}__`, html);
+        result = result.replace(`__PH_${index}__`, () => html);
     });
     
     return result;
@@ -1117,6 +1117,7 @@ function setupEventListeners() {
             if (!App.progress.completedLessons.includes(key)) {
                 App.progress.completedLessons.push(key);
                 saveProgress();
+                renderNavigation();
                 updateStats();
                 updateOverallProgress();
             }

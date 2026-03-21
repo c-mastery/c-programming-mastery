@@ -1339,6 +1339,7 @@ a:hover { color: var(--accent-dim); }
 }
 
 .output-container {
+    margin-top: 12px;
     background: var(--bg-tertiary);
     border: 1px solid var(--border);
     border-radius: var(--radius-sm);
