@@ -5,7 +5,7 @@ const ModuleAdvanced = {
         {
             id: "structs",
             title: "Structures (Grouping Data)",
-            explanation: "Arrays let you store many values of the same type. But real-world data doesn't cooperate with that constraint. A person has a name (string), an age (integer), and a height (float) — three different types that naturally belong together. You could manage them as three separate variables, but that falls apart the moment you have ten people: thirty variables with no clear relationship between them. A <strong>struct</strong> solves this by letting you bundle different types into a single, named unit. It's the first step toward thinking in terms of data structures rather than individual variables.",
+            explanation: "Once programs move beyond simple calculations, they deal with things that have multiple attributes: a student has a name, an age, and a GPA. A network packet has a source address, destination address, sequence number, and payload. A game character has a position, health, inventory, and stats. Managing these with separate variables for each attribute — <code>name1</code>, <code>age1</code>, <code>gpa1</code>, <code>name2</code>, <code>age2</code>, <code>gpa2</code> — collapses immediately when you have more than a handful of instances. A <code>struct</code> bundles related data of different types into a single named unit. This is not just a convenience — it changes how you think. Instead of thinking about 30 separate variables, you think about 10 students. You pass one struct to a function instead of three separate arguments. You put structs in arrays to get arrays of objects. Structs are the foundation of every non-trivial data structure in C.",
             sections: [
                 {
                     title: "Concept: The Blueprint",
@@ -287,7 +287,7 @@ int main() {
         {
             id: "unions-enums",
             title: "Unions and Enums",
-            explanation: "Two specialized data types that solve very specific problems. Unions are a memory-saving technique for situations where you know you'll only ever need one of several possible types at a time. Enums are a readability tool for replacing magic numbers with human-readable names.",
+            explanation: "Unions and enums solve two different but common problems. A <code>union</code> is a memory-efficiency tool: when you have a variable that could be one of several types but only ever one at a time, a union allocates only as much memory as the largest member and all members share that space. This is essential in protocol parsers, interpreters, and anywhere you need a container that can hold values of different types. An <code>enum</code> is a readability and safety tool: instead of scattering integer literals with implicit meanings throughout your code — 0 for red, 1 for green, 2 for blue — you give those integers descriptive names that the compiler can check. Together, a <code>union</code> wrapped in a <code>struct</code> with an <code>enum</code> tag gives you a safe, self-describing variant type — the pattern underlying every JSON parser and AST node ever written in C.",
             sections: [
                 {
                     title: "Unions: Shared Space",
@@ -488,7 +488,7 @@ int main() {
         {
             id: "file-io",
             title: "File Input/Output",
-            explanation: "Every program we've written so far lives entirely in RAM. The moment it exits, everything is gone. File I/O is how programs create data that outlasts their own execution. You write to a file; it goes to disk; it's still there tomorrow, after a reboot, on another machine.",
+            explanation: "Every variable, array, and data structure used so far exists only in RAM — volatile memory that is wiped when the program exits or the machine powers off. File I/O is how programs create data that persists: configuration files, user documents, logs, databases, cached results, binary assets. In C, the file I/O model is stream-based: you open a file to get a <code>FILE*</code> handle, use that handle to read or write sequentially (or randomly with seeking), and close it when done. The C standard library buffers reads and writes internally for performance — closing properly ensures that buffered data is flushed to disk. Forgetting to close a file is one of the most common causes of corrupted output files in C programs.",
             sections: [
                 {
                     title: "The File Pointer",
@@ -639,7 +639,7 @@ int main() {
         {
             id: "exit-handling",
             title: "Exiting Programs",
-            explanation: "Every program we've written exits by returning from <code>main()</code>. That works fine for simple programs, but real software sometimes needs to exit from deep inside a call stack, register cleanup functions that run at exit, or terminate abnormally. C provides several functions for controlled program termination.",
+            explanation: "A program exits when <code>main()</code> returns — but that is not the only way, and for complex programs it is often not the best way. Code running deep inside a call stack may detect a fatal error and need to exit immediately without unwinding through every caller. Resources acquired throughout a program's lifetime — open files, network connections, allocated memory — need to be released cleanly on exit regardless of where the exit occurs. C provides <code>exit()</code> for clean shutdown from anywhere, <code>atexit()</code> to register cleanup handlers that run automatically at exit, and <code>abort()</code> for truly unrecoverable failures where cleanup itself might be unsafe. Understanding the cleanup guarantees of each is essential for writing programs that do not corrupt files or leak resources when something goes wrong.",
             sections: [
                 {
                     title: "exit() and Return Status",
@@ -741,7 +741,7 @@ int main() {
         {
             id: "preprocessor",
             title: "The Preprocessor",
-            explanation: "Before the compiler ever sees your code, a separate tool runs first: the preprocessor. It scans for lines starting with <code>#</code> and acts on them — including files, substituting text, stripping out entire sections of code. The critical thing to understand is that the preprocessor is not a C program and does not understand C. It's a text manipulation tool operating on raw characters.",
+            explanation: "The C preprocessor is a separate text-transformation tool that runs before the compiler sees your code. It handles every line that starts with <code>#</code> — pasting the contents of header files in place of <code>#include</code> directives, replacing macro names with their expansions, and conditionally including or excluding entire blocks of code. Understanding the preprocessor is critical for two reasons. First, it explains many things that look like language features but are not — <code>NULL</code>, <code>assert()</code>, <code>TRUE</code>, <code>FALSE</code>, and most standard library constants are macros. Second, macros are pure text substitution with no understanding of types, operator precedence, or evaluation order, which means they have failure modes that functions do not. Knowing those failure modes is what prevents subtle macro bugs.",
             sections: [
                 {
                     title: "Concept: Text Replacement",
@@ -892,7 +892,7 @@ void printStudent(struct Student s); // Prototype
         {
             id: "c23-attributes",
             title: "C23 Standard Attributes: [[nodiscard]], [[deprecated]], [[fallthrough]], [[maybe_unused]]",
-            explanation: "C23 standardizes a portable attribute syntax using double square brackets. Attributes are annotations that convey intent to the compiler, enabling better warnings, clearer API contracts, and more aggressive optimization. Unlike GCC's <code>__attribute__((...))</code> extensions, standard attributes are part of the C language specification and work across all conforming compilers.",
+            explanation: "C23 introduces standard double-bracket attributes — <code>[[nodiscard]]</code>, <code>[[deprecated]]</code>, <code>[[fallthrough]]</code>, <code>[[maybe_unused]]</code> — as a portable way to communicate intent to the compiler and trigger specific warnings. Before C23, this kind of annotation required GCC-specific <code>__attribute__((...))</code> syntax that was both non-portable and syntactically ugly. Standard attributes let you express four of the most important API contracts: 'ignoring my return value is almost certainly a bug' (<code>[[nodiscard]]</code>), 'this function still works but you should stop using it' (<code>[[deprecated]]</code>), 'this fallthrough between switch cases is intentional, not a forgotten break' (<code>[[fallthrough]]</code>), and 'this variable might legitimately be unused in some build configurations' (<code>[[maybe_unused]]</code>). Each of these prevents a real category of bugs with zero runtime cost.",
             sections: [
                 {
                     title: "[[nodiscard]]: Enforce Return Value Checking",

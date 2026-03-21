@@ -5,7 +5,7 @@ const ModuleExpert = {
         {
             id: "variadic-functions",
             title: "Variadic Functions",
-            explanation: "You've called <code>printf</code> with one argument, two arguments, ten arguments — it always works. That's because <code>printf</code> is a <strong>variadic function</strong>: a function that accepts a variable number of arguments. The mechanism that makes this possible is exposed through <code>&lt;stdarg.h&gt;</code>, and you can write your own variadic functions using it. Understanding this unlocks a whole class of utility functions: logging, formatting, dispatchers.",
+            explanation: "Every call to <code>printf</code> is a call to a variadic function — one that accepts a variable number of arguments of varying types. The C type system normally requires functions to have a fixed, declared signature, so variadic functions are a deliberate hole in that system: they accept any number of extra arguments after the fixed ones, and it is entirely the caller's responsibility to pass the right types and count. <code>&lt;stdarg.h&gt;</code> exposes the mechanism: a <code>va_list</code> that walks through the extra arguments one by one. Writing your own variadic functions is necessary whenever you want to build a wrapper around <code>printf</code>, a type-dispatching logger, or any function that naturally accepts an open-ended list of values. The key danger is that C has no way to check at compile time whether the caller passed the right types — getting the type wrong in <code>va_arg</code> is silent undefined behaviour, which is why <code>printf</code>-style format strings exist: they encode the expected types explicitly so the compiler can check them.",
             sections: [
                 {
                     title: "The Ellipsis and va_list",
@@ -110,7 +110,7 @@ int main(void) {
         {
             id: "string-deep",
             title: "Deeper String Functions",
-            explanation: "The curriculum covered the basics of <code>&lt;string.h&gt;</code> — <code>strlen</code>, <code>strcpy</code>, <code>strcat</code>, <code>strcmp</code>. But the header contains many more functions for searching, splitting, and duplicating strings. These come up constantly in text processing and input parsing, and not knowing them leads to reimplementing them badly from scratch.",
+            explanation: "The basic string functions — <code>strlen</code>, <code>strcpy</code>, <code>strcat</code>, <code>strcmp</code> — get you through simple programs but fall short the moment you need to do real text processing. Parsing a CSV line means splitting on commas. Extracting a filename from a path means finding the last slash. Checking whether a URL contains a specific subdomain means searching for a substring. All of these are <code>&lt;string.h&gt;</code> operations that most tutorials skip. The result is that programmers who do not know these functions reimplement them manually, badly, and unsafely. Knowing what the standard library already provides — and reaching for it first — is the difference between writing C and writing C well.",
             sections: [
                 {
                     title: "Searching Strings",
@@ -230,7 +230,7 @@ int main(void) {
         {
             id: "time",
             title: "Date and Time with <time.h>",
-            explanation: "Programs frequently need to measure elapsed time, timestamp events, display the current date, or calculate time differences. <code>&lt;time.h&gt;</code> provides the core types and functions for all of these. The key is understanding the three representations C uses internally and how to convert between them.",
+            explanation: "Time handling is one of those capabilities that seems simple until you actually need it. Programs need to timestamp log entries, calculate how long an operation took, display dates in a human-readable format, sort events chronologically, or expire cached data after a timeout. <code>&lt;time.h&gt;</code> gives you three representations that serve different needs: a compact integer timestamp (seconds since the Unix epoch, 1970-01-01) for storage and arithmetic, a broken-down struct with separate year, month, day fields for display and calendar logic, and a CPU-clock counter for measuring execution time. The most common mistake is not knowing which representation to use when — and therefore performing calendar arithmetic on epoch integers instead of broken-down times, or using wall-clock time to benchmark code instead of CPU time.",
             sections: [
                 {
                     title: "The Three Time Types",
@@ -325,7 +325,7 @@ int main(void) {
         {
             id: "signal-handling",
             title: "Signal Handling",
-            explanation: "Signals are asynchronous notifications sent to a process by the OS, by the hardware, or by another process. Pressing Ctrl+C sends SIGINT to the foreground process. Dividing by zero generates SIGFPE. Dereferencing a NULL pointer generates SIGSEGV. By default, most signals kill the process. You can install a handler function to intercept signals and respond — for example, cleaning up resources before exit when the user presses Ctrl+C.",
+            explanation: "A signal is the OS's way of delivering an asynchronous notification to a running process — it can arrive at any point between any two instructions with no warning. Ctrl+C sends SIGINT, the <code>kill</code> command sends SIGTERM, integer division by zero raises SIGFPE, a NULL pointer dereference raises SIGSEGV. By default, most signals terminate the process immediately. Signal handlers let you intercept signals before they kill your program — to clean up temporary files, flush unsaved state, log the error, or simply ignore the signal. The key constraints are severe: a signal handler executes in an unpredictable context, potentially interrupting any operation in your program. Only a tiny set of functions are safe to call from inside a handler (async-signal-safe functions). Anything else is undefined behaviour. Getting signal handling right is one of the harder correctness problems in C programming.",
             sections: [
                 {
                     title: "The signal() Function",
@@ -405,7 +405,7 @@ int main(void) {
         {
             id: "generic-selection",
             title: "Type-Generic Programming with _Generic",
-            explanation: "C11 introduced <code>_Generic</code> — a compile-time construct that selects an expression based on the type of a controlling expression. It's the foundation of type-generic programming in C: the mechanism behind <code>&lt;tgmath.h&gt;</code>, and a tool for writing macros that behave correctly regardless of input type.",
+            explanation: "C has always had a type system but no way to write code that adapts to types at compile time without macros or separate function names. You could not write a single <code>abs(x)</code> that worked correctly for both <code>int</code> and <code>double</code> without either a macro with type-safety problems or multiple function names (<code>abs</code>, <code>fabs</code>, <code>cabs</code>). C11 introduced <code>_Generic</code> to fix this. It is a compile-time selection construct: given an expression, select a different result expression based on the expression's type. The selected branch is the only one that appears in the compiled output — the others are discarded entirely. This is the mechanism behind <code>&lt;tgmath.h&gt;</code> (type-generic math), and it enables you to write macros that dispatch to the correct implementation based on argument type, with full compile-time type checking and zero runtime overhead.",
             sections: [
                 {
                     title: "The _Generic Expression",
@@ -481,7 +481,7 @@ MIN(1.5,2.5) = 1.500000`,
         {
             id: "auto-typeof",
             title: "C23 Type Inference: auto and typeof",
-            explanation: "C23 introduces two major type-inference features: <code>auto</code> for deducing variable types from their initializers, and <code>typeof</code> / <code>typeof_unqual</code> for querying the type of an expression at compile time without evaluating it. Together they make type-generic macros dramatically safer and more composable.",
+            explanation: "C has always required explicit type declarations for every variable, which becomes verbose and error-prone in two specific situations: when the type is obvious from the initializer (why write <code>unsigned long long counter = 0ULL</code> when the type is right there in the initializer?), and inside type-generic macros where you need to declare a temporary of the same type as a macro argument without knowing what that type is. C23's <code>auto</code> solves the first by inferring the variable's type from its initializer. <code>typeof</code> solves the second by letting you name the type of any expression without evaluating it. Together they eliminate a significant source of macro bugs: the classic mistake of evaluating a macro argument twice (<code>#define SQUARE(x) (x)*(x)</code> evaluates <code>x</code> twice, so <code>SQUARE(i++)</code> increments <code>i</code> twice). With <code>typeof</code> you can declare a local of the right type, assign the argument once, and use the local.",
             sections: [
                 {
                     title: "auto: Type Deduction (C23)",
@@ -554,7 +554,7 @@ int main(void) {
         {
             id: "setjmp-longjmp",
             title: "Non-Local Jumps: setjmp and longjmp",
-            explanation: "C provides a mechanism for jumping out of deeply nested function calls without the normal return path: <code>setjmp</code> saves the current execution state into a <code>jmp_buf</code>, and <code>longjmp</code> restores it from anywhere in the call stack. This is C's closest equivalent to exceptions — and it's both more limited and more dangerous.",
+            explanation: "<code>setjmp</code> and <code>longjmp</code> implement non-local jumps: <code>setjmp</code> saves a snapshot of the current execution state (registers, stack pointer, instruction pointer) into a <code>jmp_buf</code>, and <code>longjmp</code> restores that snapshot from anywhere in the call stack — even from deeply nested functions called later. Execution resumes at the <code>setjmp</code> call site as if <code>setjmp</code> had returned again, this time with a non-zero value. This is C's closest equivalent to exceptions and is used in exactly the same situation: a deep recursive function encounters an unrecoverable error and needs to abort the entire operation and return control to a top-level recovery point without propagating error codes back through every stack frame. The price is steep: <code>longjmp</code> unwinds the stack without calling any destructors or cleanup code, so all resources acquired between the <code>setjmp</code> and the <code>longjmp</code> are leaked unless you track them carefully.",
             sections: [
                 {
                     title: "How setjmp and longjmp Work",
@@ -618,7 +618,7 @@ Continues normally`
         {
             id: "unreachable-c23",
             title: "unreachable(), [[noreturn]], and Program Termination (C23)",
-            explanation: "C23 introduces <code>unreachable()</code>, a macro that tells the compiler a code path is impossible. This is a promise — breaking it is undefined behavior — but when kept it enables dead-branch elimination, cleaner switch exhaustion, and tighter code. Paired with <code>[[noreturn]]</code> and the termination functions, it gives you precise control over how and why a program ends.",
+            explanation: "Optimising compilers analyse every possible execution path through a function. When they encounter code they cannot prove is unreachable, they must generate conservative machine code that handles every possibility — even ones that are logically impossible given your program's invariants. <code>unreachable()</code> (C23) lets you tell the compiler 'execution never reaches this point' — a promise backed by undefined behaviour if violated, but one that enables the compiler to eliminate dead branches, tighten register allocation, and suppress spurious 'missing return' warnings on exhaustive switch statements. <code>[[noreturn]]</code> complements this: it marks functions like <code>exit()</code> or custom fatal-error handlers as never returning, so callers do not need a <code>return</code> statement after them and the compiler can optimise call sites accordingly. Together these are precision tools for communicating to the compiler what you know about your program's control flow that the compiler cannot prove on its own.",
             sections: [
                 {
                     title: "unreachable() (C23)",
@@ -691,7 +691,7 @@ int main(void) {
         {
             id: "threads-c11",
             title: "Threads with <threads.h> (C11)",
-            explanation: "C11 standardized multithreading via <code>&lt;threads.h&gt;</code>. It provides threads (<code>thrd_t</code>), mutexes (<code>mtx_t</code>), condition variables (<code>cnd_t</code>), and thread-local storage (<code>thread_local</code>). This is a portable, minimal threading API — simpler than POSIX threads, and available wherever C11 is supported.",
+            explanation: "A thread is an independent sequence of execution sharing the same process memory. Multithreading lets a program do multiple things simultaneously: handle network connections while processing previous requests, perform background computation while keeping the UI responsive, utilise all cores of a multi-core CPU. C11 standardised a portable threading API in <code>&lt;threads.h&gt;</code> — before C11, every platform had its own (POSIX threads on Linux/macOS, Win32 threads on Windows). The fundamental challenge of multithreading is that threads share memory: two threads modifying the same variable simultaneously produces a data race — a form of undefined behaviour where the interleaving of operations is unpredictable. Mutexes prevent data races by ensuring only one thread executes a critical section at a time. Condition variables let threads sleep efficiently while waiting for a condition that another thread will eventually satisfy. Understanding both is the minimum to write correct multithreaded code.",
             sections: [
                 {
                     title: "Creating and Joining Threads",
@@ -789,7 +789,7 @@ int main(void) {
         {
             id: "restrict-inline",
             title: "Performance: restrict and inline",
-            explanation: "Two C features exist almost exclusively to give the compiler more information for faster code: <code>restrict</code> promises that two pointers don't alias each other, and <code>inline</code> hints that a function should be expanded at the call site rather than called through the normal function-call mechanism.",
+            explanation: "Two features that exist purely to give the compiler information it cannot infer on its own, enabling optimisations that would otherwise be unsafe. <code>restrict</code> on a pointer is a promise: 'no other pointer in this function's scope that I did not derive from this one points to the same memory'. Without this promise, the compiler must assume any write through any pointer might alias any read through any other pointer — it cannot reorder operations, keep values in registers across writes, or vectorise loops. With <code>restrict</code>, it can. This is why <code>memcpy</code> is declared with <code>restrict</code> and <code>memmove</code> is not: <code>memcpy</code> requires non-overlapping regions (your promise to the compiler), while <code>memmove</code> handles overlap but is slower because it cannot make the aliasing assumption. <code>inline</code> hints that a function body should be expanded at call sites instead of being called through the normal call/return mechanism, eliminating call overhead for tiny, hot functions. Modern compilers often inline without the hint, but <code>static inline</code> in headers is the standard idiom for utility functions.",
             sections: [
                 {
                     title: "restrict: Promising No Aliasing",

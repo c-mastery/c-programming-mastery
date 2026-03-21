@@ -5,7 +5,7 @@ const ModuleLowLevel = {
         {
             id: "pointers-intro",
             title: "Introduction to Pointers",
-            explanation: "A pointer is a variable that stores the memory address of another variable. Not the value — the address. Where it lives. Every variable you declare occupies some bytes in RAM, and those bytes are at a specific, numbered location. A pointer holds that number. The classic analogy: think of RAM as a city full of houses. A regular variable is the house itself. A pointer is a piece of paper with the house's address written on it. The paper is not the house, but with it you can find the house, look inside, and change what's there.",
+            explanation: "Pointers are the feature that makes C genuinely different from higher-level languages, and they are the source of both C's power and its most dangerous bugs. A pointer is a variable that holds a memory address — not a value, but the location where a value lives. Every variable in RAM occupies a specific numbered address. A pointer stores that number. This is not an abstraction: you can print the address, do arithmetic on it, and pass it to functions that then modify the original data through it. Languages like Python and Java have references, but those references are managed and restricted by the runtime. C pointers are raw, unmediated addresses — the same thing the CPU itself uses. Understanding pointers is not optional in C. Virtually every non-trivial C program uses them: to avoid copying large data structures, to allow functions to modify their caller's variables, to build dynamic data structures like linked lists and trees, and to interface with operating system APIs that communicate through memory addresses.",
             sections: [
                 {
                     title: "The Two Key Operators",
@@ -99,7 +99,7 @@ int main() {
         {
             id: "pointer-arithmetic",
             title: "Pointer Arithmetic",
-            explanation: "You can do arithmetic on pointers — add, subtract, increment, decrement. But pointer arithmetic is not regular integer arithmetic. When you add 1 to a pointer, you don't add 1 byte. You add the size of whatever the pointer points to. This is the language automatically scaling movement to the size of the data type, so that pointer arithmetic always moves in meaningful, aligned steps.",
+            explanation: "Once you have a pointer, you can move it — add an integer to it, subtract, increment, decrement. But C pointer arithmetic is not byte arithmetic. When you add 1 to an <code>int*</code>, the address advances by <code>sizeof(int)</code> bytes — typically 4 — because the intent is to move to the next <code>int</code> in memory, not one arbitrary byte forward. The compiler automatically scales every pointer arithmetic operation by the size of the pointed-to type. This design is not a quirk — it is the mechanism that makes arrays and pointer traversal equivalent, and it is why the type of a pointer matters beyond just 'how to read the value at that address'.",
             sections: [
                 {
                     title: "How it Works",
@@ -187,7 +187,7 @@ int main() {
         {
             id: "pointers-functions",
             title: "Pointers and Functions",
-            explanation: "Remember from the Functions module that C passes arguments by value — functions get copies, and whatever they do to their copies has no effect on the caller's originals. Pointers are the solution to this. Instead of passing the variable, you pass its address. The function receives a pointer and can dereference it to read or modify the original variable directly. This is how C achieves pass-by-reference — by explicitly passing addresses.",
+            explanation: "Pass-by-value means functions receive copies and cannot modify their caller's originals. This is safe but limited. A <code>swap(a, b)</code> function that actually swaps the caller's variables is impossible with pass-by-value — it would swap its own copies and discard them. The solution is to pass the <em>address</em> of the variable rather than its value. The function receives a pointer, and through that pointer it can read and write the original variable directly. This is C's form of pass-by-reference — not a language feature, but a deliberate idiom using pointers. It is used pervasively: functions that return multiple values do so by writing through pointer parameters; OS APIs communicate results through output pointer parameters; every call to <code>scanf</code> uses it. Understanding this pattern is essential for reading any real C code.",
             sections: [
                 {
                     title: "Swapping Two Numbers",
@@ -216,7 +216,7 @@ int main() {
         {
             id: "double-pointer",
             title: "Pointer to Pointer (**)",
-            explanation: "A pointer stores a memory address. A pointer to a pointer stores the address of a pointer. This sounds recursive and slightly unhinged, but it has concrete, practical uses that come up constantly: modifying a pointer from inside a function, working with 2D dynamic arrays, and handling arrays of strings. If single pointers make you think of arrows pointing to data, double pointers are arrows pointing to other arrows.",
+            explanation: "A pointer holds an address. A pointer to a pointer holds the address of that pointer — it is one level of indirection further. This is not an academic exercise. Three concrete situations make double pointers unavoidable. First: if you want a function to assign a new value to a pointer in the caller, you must pass a pointer to that pointer — just as modifying an <code>int</code> requires an <code>int*</code>, modifying a pointer requires a pointer-to-pointer. Second: a 2D dynamically allocated array is an array of pointers, each of which points to a row — the top-level array is a <code>char**</code>. Third: an array of strings (like <code>argv</code> in <code>main</code>) is a <code>char**</code> because each string is a <code>char*</code> and an array of those is <code>char**</code>. Once you can read <code>char**argv</code> and understand it as 'a pointer to the first element of an array of char pointers', the mental model is solid.",
             sections: [
                 {
                     title: "The Concept",
@@ -317,7 +317,7 @@ int main() {
         {
             id: "dynamic-memory",
             title: "Dynamic Memory Allocation",
-            explanation: "Every array and variable we've created so far had a fixed size decided at compile time — before the program runs. But real programs often don't know how much memory they'll need until runtime: a user might enter 5 items or 5000. Dynamic memory allocation lets you request memory from the operating system while the program is actually running. That memory comes from a region called the Heap, which is large and flexible — but unlike the Stack, it requires you to manage it yourself.",
+            explanation: "Every local variable and fixed-size array you have declared so far has lived on the <em>stack</em> — a region of memory whose layout is determined entirely at compile time. The stack is fast and automatically managed, but it has two hard limits: its total size is fixed (typically 1–8 MB), and every allocation must be a size known at compile time. These constraints eliminate entire categories of programs. A text editor cannot know at compile time how long the document will be. A database cannot know how many rows a query will return. A web server cannot know how many simultaneous connections to accept. Dynamic memory allocation — requesting memory at runtime from the <em>heap</em> — is the solution. The heap is large (limited only by available RAM) and the size of each allocation can be any value computed at runtime. The cost is that you are personally responsible for every byte you allocate: you must free it exactly once, at the right time, or you have either a memory leak (never freed) or a use-after-free (freed too early). No garbage collector. No automatic cleanup. This is the central trade-off of C memory management.",
             sections: [
                 {
                     title: "The Heap vs The Stack",
@@ -442,7 +442,7 @@ int main() {
         {
             id: "function-pointers",
             title: "Function Pointers",
-            explanation: "Functions are compiled into machine code that lives at a specific address in memory, just like variables do. That means you can have a pointer that points to a function — store its address, pass it around, and call it indirectly through the pointer. This is the mechanism behind callbacks: passing a function as an argument to another function so that the other function can call it at the right time. It's how C implements things like custom sort comparators, event handlers, and plugin architectures.",
+            explanation: "A function, once compiled, is machine code sitting at a specific address in memory. Like any other address, that address can be stored in a pointer variable. A function pointer holds the address of a function and can be used to call that function indirectly. This enables one of the most important patterns in systems programming: passing behaviour as a parameter. The standard library's <code>qsort</code> sorts any array of any type precisely because you pass it a comparison function — <code>qsort</code> does not need to know what it is sorting, only how to compare two elements, and you provide that knowledge as a function pointer. The same mechanism powers event systems, plugin architectures, state machines, virtual dispatch tables, and every callback API you will encounter when programming against operating system interfaces.",
             sections: [
                 {
                     title: "The Syntax",
@@ -569,7 +569,7 @@ int main() {
         {
             id: "alignment-staticassert",
             title: "Memory Alignment, alignas, alignof, and _Static_assert",
-            explanation: "Modern CPUs perform best — and sometimes only correctly — when data is aligned to specific byte boundaries. A <code>double</code> on a misaligned address is either slow (extra memory accesses) or a bus error on strict-alignment architectures. C11 and C23 give you the tools to query and control alignment: <code>alignof</code> to inspect, <code>alignas</code> to enforce, and <code>_Static_assert</code> to verify assumptions at compile time so mismatches are caught before they become runtime bugs.",
+            explanation: "Modern CPUs do not read arbitrary bytes from arbitrary addresses with equal efficiency. They have alignment requirements: a 4-byte <code>int</code> should live at an address divisible by 4; an 8-byte <code>double</code> should be at an address divisible by 8. When data is naturally aligned, the CPU can load it in a single memory transaction. When it is misaligned, the CPU must perform two transactions and stitch the result together — roughly twice the memory bandwidth for one variable. On some embedded and RISC architectures (like older ARM), accessing a misaligned value is not just slow — it is a bus fault that crashes the program. The compiler usually handles alignment automatically for individual variables, but you lose that guarantee when casting between pointer types, reading packed binary data (network packets, file formats), or placing data in manually allocated buffers. C11 and C23 provide <code>alignof</code> to query natural alignment and <code>alignas</code> to enforce a specific alignment requirement.",
             sections: [
                 {
                     title: "alignof: Querying Alignment Requirements",
@@ -696,7 +696,7 @@ sequence at offset:  4`,
         {
             id: "compiler-warnings",
             title: "Using the Compiler as Your First Debugger",
-            explanation: "The C compiler is not just a translator — it's the most powerful static analysis tool you have, and it's free. But its default behavior is to stay quiet about suspicious code. The flags you pass at compile time determine whether you get a silent binary or a detailed report of every questionable pattern in your code. Professional C development means always compiling with warnings enabled and treating warnings as errors.",
+            explanation: "The compiler knows more about your code than you think it does. It can see signed-unsigned comparison mismatches, variables used before initialization, functions called with the wrong number of arguments, unreachable code, implicit narrowing conversions, and dozens of other patterns that almost always indicate bugs. But it only tells you about them if you ask — the default compilation mode prioritises getting a binary out the door over being helpful. The flags <code>-Wall -Wextra -Wpedantic</code> turn on the full suite of warnings. <code>-Werror</code> turns every warning into a compilation error, preventing you from ignoring them. Professional C projects compile with all of these flags enabled. A codebase that compiles cleanly with <code>-Wall -Wextra -Werror</code> has provably eliminated an entire category of common bugs before a single line has been tested. Adding sanitizers (<code>-fsanitize=address,undefined</code>) extends this into runtime: they detect memory errors, undefined behaviour, and invalid pointer use with near-zero false positives.",
             sections: [
                 {
                     title: "The Essential Warning Flags",
@@ -809,7 +809,7 @@ READ of size 4 at 0x... thread T0
         {
             id: "gdb",
             title: "Debugging with GDB",
-            explanation: "When your program crashes, misbehaves, or produces wrong output, you have two options: scatter <code>printf</code> calls everywhere and guess, or use a debugger and actually look at what's happening. GDB (the GNU Debugger) is the standard debugger for C on Linux and macOS. It lets you pause execution at any line, inspect every variable's value, step through code one instruction at a time, and examine the call stack when a crash occurs. Ten commands cover 90% of real debugging sessions.",
+            explanation: "When a program crashes or produces wrong output, most beginners reach for <code>printf</code> — inserting print statements throughout the code to narrow down where things go wrong. This works for simple cases but does not scale. A crash inside a 20-level call stack, a variable corrupted somewhere in 5000 lines of code, or a segfault that only happens with certain input — these require a debugger. GDB (GNU Debugger) lets you pause a running program at any line, inspect the value of every variable, step through code one instruction at a time, examine the full call stack, set watchpoints that trigger when a value changes, and catch crashes at the exact moment they happen with the exact state of memory at that instant. Learning ten GDB commands turns hours of confused printf debugging into minutes of directed investigation.",
             sections: [
                 {
                     title: "Compiling for Debugging",
@@ -892,7 +892,7 @@ gdb -tui ./myprogram
         {
             id: "undefined-behavior",
             title: "Undefined Behavior: What It Is and Why It Matters",
-            explanation: "Undefined behavior (UB) is the single most dangerous concept in C. When your code invokes UB, the C standard places <em>no requirements</em> on what happens — the compiler may produce any output, silently corrupt memory, erase data, or generate code that works perfectly in debug mode and catastrophically fails in release. UB is not a runtime error you can catch — it's a contract violation that the compiler is allowed to assume never happens, and it uses that assumption to generate faster, smaller code. Understanding UB is what separates C programmers who ship reliable software from those who get lucky.",
+            explanation: "Undefined behaviour (UB) is the most important concept in C to understand deeply, and the one most frequently misunderstood. When your code invokes UB — signed integer overflow, out-of-bounds array access, dereferencing a null or freed pointer, reading an uninitialized variable, violating strict aliasing — the C standard makes absolutely no guarantee about what happens. Not 'it will crash'. Not 'it will produce a wrong value'. Not 'it will do the obvious thing'. Literally nothing is guaranteed. The compiler is allowed to assume UB never happens, and it uses that assumption to generate faster, smaller code. What this means in practice: code that invokes UB may work correctly in a debug build with no optimizations and silently produce the wrong answer in a release build with <code>-O2</code> — because the optimizer eliminated a branch it proved 'cannot be reached' based on the assumption that the UB in that branch never occurs. Real security vulnerabilities have been introduced this way. Real programs have had their safety checks optimized away. Understanding which operations are UB and why the compiler is permitted to assume they never happen is what separates C programmers who ship reliable software from those who ship time bombs.",
             sections: [
                 {
                     title: "The Abstract Machine",

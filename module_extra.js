@@ -5,7 +5,7 @@ const ModuleExtra = {
         {
             id: "type-casting",
             title: "Type Casting",
-            explanation: "C is a statically typed language, but it will silently convert between types whenever it thinks it knows what you mean. Sometimes it's right. Sometimes it produces subtly wrong results and doesn't tell you. Understanding when C converts automatically and when you need to be explicit is what separates code that works from code that works most of the time.",
+            explanation: "C's type system is static — every variable has a fixed type known at compile time — but C is unusually permissive about mixing types in expressions. Some conversions happen implicitly and silently: <code>int</code> to <code>double</code>, <code>char</code> to <code>int</code>. Others require an explicit cast. The problem is that C's implicit conversions follow rules that are not always intuitive — the most dangerous being the signed-to-unsigned conversion that makes <code>-1 < 1U</code> false, and integer division that silently truncates <code>7/2</code> to 3 instead of 3.5. These rules are not bugs in C — they follow directly from how binary arithmetic works. Understanding them is what prevents you from writing code that computes the right answer on your machine and the wrong answer on a platform with different default signedness.",
             sections: [
                 {
                     title: "Implicit Conversion (Type Promotion)",
@@ -91,7 +91,7 @@ int main() {
         {
             id: "argc-argv",
             title: "Command-Line Arguments",
-            explanation: "Every C program we've written starts with <code>int main()</code>. But <code>main</code> can accept arguments — values the user passes on the command line when running the program. This is how tools like <code>gcc</code>, <code>ls</code>, and every command-line utility ever written receive their inputs. The mechanism is two parameters: <code>argc</code> and <code>argv</code>.",
+            explanation: "Every Unix command-line tool — <code>gcc</code>, <code>ls</code>, <code>grep</code>, <code>curl</code>, every tool you use at the terminal — receives its inputs through <code>argc</code> and <code>argv</code>. <code>argc</code> is the count of arguments (including the program name itself); <code>argv</code> is an array of strings, one per argument. This is how users tell your program what files to process, what options to enable, and what values to use without hardcoding anything. Arguments always arrive as strings — even numbers like <code>42</code> arrive as the two characters <code>'4'</code> and <code>'2'</code> — so you must convert them explicitly using <code>atoi</code> or the safer <code>strtol</code>. Writing a well-behaved command-line tool means checking that the right number of arguments was passed, validating their values, and printing a usage message when something is wrong.",
             sections: [
                 {
                     title: "argc and argv",
@@ -161,7 +161,7 @@ int main(int argc, char *argv[]) {
         {
             id: "const-pointers",
             title: "const and Pointers",
-            explanation: "<code>const</code> on its own is straightforward — it marks a variable as read-only. But <code>const</code> combined with pointers has three distinct meanings depending on where the keyword appears, and confusing them is one of the most common sources of compiler warnings and subtle bugs in C. This is worth learning precisely because you will see all three forms constantly in real code and library headers.",
+            explanation: "<code>const</code> on a plain variable is straightforward — it marks the variable as read-only and the compiler enforces this. Combined with pointers, <code>const</code> becomes a precision tool for expressing two independent contracts: 'I will not modify what this pointer points to' and 'I will not point this pointer elsewhere'. These are different promises, and the position of <code>const</code> relative to the <code>*</code> determines which one you are making. Getting this right is not pedantry — it is how you write function signatures that communicate clearly to callers ('this function will not modify your data') and how you make the compiler catch accidental modifications. You will encounter all three forms constantly in library headers and real codebases, so reading them fluently is a practical necessity.",
             sections: [
                 {
                     title: "Three Forms, Three Meanings",
@@ -246,7 +246,7 @@ int main() {
         {
             id: "loops-internals",
             title: "How Loops Actually Work",
-            explanation: "Loops feel like abstract control flow, but the CPU has no concept of 'loop' — it only knows instructions and jumps. Understanding what the machine actually does when you write a loop explains why certain loop patterns are faster than others, what 'loop unrolling' means, how branch prediction works, and why iterating over a 2D array in the wrong order can be several times slower than doing it right.",
+            explanation: "At the machine code level there is no such thing as a loop — only instructions and conditional jumps. A <code>for</code> loop compiles to: execute the body, increment the counter, check the condition, jump back to the body if true. Every iteration costs at least one comparison and one branch instruction. For loops with tiny bodies — adding a single integer, setting a flag — that overhead can be a significant fraction of the total work. Understanding this explains loop unrolling (repeating the body multiple times per iteration to amortise branch costs), cache locality (why traversing a 2D array row-first is dramatically faster than column-first), and branch prediction (why loops are fast after the first few iterations — the CPU learns the branch is almost always taken). These are not micro-optimisation trivia. They are the difference between a matrix multiplication that runs in 50ms and one that runs in 500ms.",
             sections: [
                 {
                     title: "Loops as Jumps",
@@ -354,7 +354,7 @@ int main() {
         {
             id: "atomics",
             title: "Atomics and Concurrency (C11)",
-            explanation: "Modern programs often run multiple threads simultaneously. When two threads access the same variable at the same time — one reading, one writing — without any coordination, you have a race condition. The result is undefined behavior: you might read a half-written value, or the compiler might reorder operations in ways that break your assumptions entirely. C11 introduced <code>_Atomic</code> types and the <code>&lt;stdatomic.h&gt;</code> header to give you operations that are guaranteed to complete without interference from other threads.",
+            explanation: "When two threads read and write the same variable without synchronisation, the result is a data race — a form of undefined behaviour. Even something as simple as incrementing a counter from two threads is not safe: the increment compiles to three separate instructions (load, add, store), and any interleaving of those six instructions across two threads can produce a wrong final value. Mutexes solve this by allowing only one thread at a time into a protected section, but they have overhead. Atomic operations are a lighter alternative: they are guaranteed by the hardware to complete in a single uninterruptible step, with no possibility of another thread observing an intermediate state. C11's <code>_Atomic</code> qualifier and <code>&lt;stdatomic.h&gt;</code> expose this hardware capability portably — the right tool for shared counters, flags, and reference counts where mutex overhead is not justified.",
             sections: [
                 {
                     title: "The Race Condition Problem",
@@ -443,7 +443,7 @@ int main() {
         {
             id: "stdlib-deep",
             title: "Standard Library Deep Dive",
-            explanation: "The C standard library is a collection of pre-compiled, battle-tested functions that come with every C compiler. Learning which functions exist and what they actually do well prevents you from reinventing things badly. This lesson covers the most practically useful functions across four headers you'll reach for constantly: <code>&lt;string.h&gt;</code> for memory operations, <code>&lt;stdlib.h&gt;</code> for sorting, searching, and conversions, and <code>&lt;math.h&gt;</code> for mathematics.",
+            explanation: "One of the most common beginner mistakes in C is reimplementing functions that already exist in the standard library — writing a custom sort instead of using <code>qsort</code>, writing a string-to-integer converter instead of using <code>strtol</code>, writing a memory search instead of using <code>memchr</code>. The homemade versions are almost always slower, buggier, and less portable than the library versions, which have been tested on every platform for decades. The standard library is modest compared to Python's or Java's, but it covers the operations every C program needs: sorting and searching arbitrary data, converting between strings and numbers reliably, copying and comparing blocks of memory, and performing mathematical operations. Knowing what is already available — and reaching for it first — is a mark of professional C development.",
             sections: [
                 {
                     title: "Memory Functions (string.h)",
@@ -634,7 +634,7 @@ int main() {
         {
             id: "c23-stdlib",
             title: "C23 Standard Library Additions: strdup, stdbit.h, and Checked Arithmetic",
-            explanation: "C23 doesn't just add syntax — it adds substantial new standard library functionality. <code>strdup</code> and <code>strndup</code> are finally standard (they've been POSIX for decades but not part of C). <code>&lt;stdbit.h&gt;</code> standardizes bit-manipulation utilities previously implemented differently on every platform. And checked integer arithmetic macros let you detect overflow without undefined behavior.",
+            explanation: "C23 adds several standard library features that programmers have been implementing manually or sourcing from POSIX extensions for decades. <code>strdup</code> and <code>strndup</code> have existed on every Unix system since the 1980s but were not in the C standard — every codebase that used them had a portability caveat. <code>&lt;stdbit.h&gt;</code> standardises bit-counting and bit-manipulation operations that previously required either hand-rolled implementations or compiler-specific builtins like GCC's <code>__builtin_popcount</code> — none of which were portable or type-generic. The checked arithmetic functions in <code>&lt;stdckdint.h&gt;</code> address a long-standing problem: detecting integer overflow in C before C23 required convoluted workarounds that were easy to get wrong and visually obscure. These additions do not add new capabilities to C so much as they standardise what professionals were already doing, making that code portable and readable.",
             sections: [
                 {
                     title: "strdup and strndup (C23)",
@@ -829,7 +829,7 @@ Built string: 'Hello World'`
         {
             id: "capstone",
             title: "Capstone: A Command-Line Task Manager",
-            explanation: "This is the integration point. Every major concept from this curriculum — structs, dynamic memory, file I/O, function pointers, the preprocessor, error handling — comes together in a single project. The spec is deliberately minimal. Your job is to implement it correctly, handle errors properly, and write a Makefile to build it. There is no hand-holding here.",
+            explanation: "Reading about a concept and applying it under real constraints are two completely different things. Every module so far has presented each feature in isolation — a lesson on structs, a lesson on file I/O, a lesson on dynamic memory. The capstone project forces you to combine all of them simultaneously, which is where the real learning happens. You will discover that file formats need careful struct layout decisions, that error handling in file I/O interacts with dynamic memory cleanup, that command-line argument parsing requires type conversion and validation, and that a Makefile is not optional once you have multiple source files. The spec is intentionally open-ended in places — ambiguity is deliberate. Professional C programming means making and defending design decisions, not following a recipe.",
             sections: [
                 {
                     title: "The Spec",
@@ -910,7 +910,7 @@ int  task_delete(int id);
         {
             id: "what-next",
             title: "What Next? Life After This Curriculum",
-            explanation: "You've covered the language from first principles through C23. That's the foundation — but C mastery is built through practice on real problems, reading real codebases, and using the tools the C ecosystem actually relies on. This lesson is a map of where to go from here.",
+            explanation: "Finishing this curriculum means you understand the language. That is necessary but not sufficient. C mastery comes from three things that a curriculum cannot provide: writing substantial programs that have real constraints and real users, reading high-quality C code written by people who have been doing this for decades, and using the professional toolchain — sanitizers, debuggers, static analysers — on code that actually matters to you. The projects listed here are chosen because they sit at the intersection of 'achievable by someone who just finished this curriculum' and 'forces you to confront the hard parts of C that tutorials avoid'. The resources are chosen because they are what working C programmers actually use and return to, not what gets recommended in beginner threads. The codebases are chosen because they are the best examples of how experienced engineers use C at scale.",
             sections: [
                 {
                     title: "Projects That Will Teach You More Than Any Tutorial",

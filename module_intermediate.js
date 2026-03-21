@@ -5,7 +5,7 @@ const ModuleIntermediate = {
         {
             id: "advanced-operators",
             title: "Advanced Operators",
-            explanation: "Beyond basic arithmetic, C gives you operators that work at the bit level, operators that compress decisions into single expressions, and operators that tell you things about the machine itself. These come up constantly in real C code, especially anything dealing with hardware, performance, or low-level data manipulation.",
+            explanation: "Beyond basic arithmetic, C exposes operators that work at the bit level, an operator that compresses a conditional into a single expression, and an operator that queries the machine-level size of any type. These are not exotic edge cases — they are daily tools in systems programming. Bit operations are the standard way to pack multiple boolean flags into a single integer, manipulate hardware registers, and write fast low-level code. The <code>sizeof</code> operator is essential for writing code that works correctly on different hardware. And the ternary operator appears in virtually every non-trivial C program. This lesson builds the vocabulary you need to read real C source code.",
             sections: [
                 {
                     title: "The Ternary Operator",
@@ -34,37 +34,49 @@ int main() {
                     output: "Status: Adult\\nSenior discount: 0%\\nGrade: B"
                 },
                 {
-                    title: "Bitwise Operators (Introduction)",
-                    content: "Every value in your program is ultimately stored as a sequence of bits — 0s and 1s in memory. Bitwise operators tear off the abstraction and let you manipulate individual bits directly. This is essential in embedded systems (toggling hardware pins), network programming (packing flags into bytes), graphics, encryption, and performance-sensitive code.",
+                    title: "Bitwise Operators",
+                    content: "Every value in your program is ultimately a sequence of bits. Bitwise operators act directly on those bits, one bit at a time. This is not an abstraction — it is the lowest level of manipulation available in C without writing assembly. Real uses: hardware registers where each bit controls a feature (read-only bit 0, write-enable bit 1, interrupt-enable bit 2), permission flags packed into a single integer, network packet headers, colour channels packed into a 32-bit RGBA value, and any situation where you need to pack multiple small values into one integer to save memory.",
                     points: [
-                        "<code>&</code> (AND): The result bit is 1 only if BOTH corresponding bits are 1. Classic use: masking — isolating specific bits.",
-                        "<code>|</code> (OR): Result is 1 if AT LEAST one bit is 1. Classic use: setting specific bits without touching others.",
-                        "<code>^</code> (XOR): Result is 1 only if the bits are DIFFERENT. Classic use: toggling bits, simple encryption, the 'swap without temp' trick.",
-                        "<code>~</code> (NOT): Flips every single bit. Be careful: <code>~5</code> on a 32-bit int gives -6 due to two's complement representation.",
-                        "<code>&lt;&lt;</code> (Left Shift): Shifts bits left, filling right with zeros. Each shift left multiplies by 2.",
-                        "<code>&gt;&gt;</code> (Right Shift): Shifts bits right. Each shift right divides by 2. Behavior on negative signed integers is implementation-defined — avoid on signed types."
+                        "<code>&</code> (AND) — mask: result bit is 1 only when BOTH input bits are 1. Used to isolate specific bits: <code>flags & 0x04</code> tests whether bit 2 is set, leaving all other bits as 0. Like a stencil — only lets through what you specify.",
+                        "<code>|</code> (OR) — set: result bit is 1 when AT LEAST ONE input bit is 1. Used to turn on specific bits without disturbing others: <code>flags | 0x04</code> sets bit 2 and leaves everything else unchanged.",
+                        "<code>^</code> (XOR) — toggle: result bit is 1 when the input bits DIFFER. Used to flip specific bits: <code>flags ^ 0x04</code> toggles bit 2 — if it was 0 it becomes 1, if it was 1 it becomes 0.",
+                        "<code>~</code> (NOT) — invert: flips every bit. <code>~5</code> on a 32-bit int gives -6, because of two's complement representation. Use with care on signed types.",
+                        "<code>&lt;&lt;</code> (left shift) — multiply by powers of 2: <code>x &lt;&lt; n</code> shifts bits left by n positions, filling with zeros. Each position is a multiplication by 2. <code>1 &lt;&lt; 3 = 8</code>. This is how you create single-bit masks: <code>1 &lt;&lt; bit_position</code>.",
+                        "<code>&gt;&gt;</code> (right shift) — divide by powers of 2: <code>x &gt;&gt; n</code> shifts bits right. For unsigned types, fills with zeros. For signed types, behaviour on negative values is implementation-defined — always right-shift unsigned values."
                     ],
                     code: `#include <stdio.h>
 
 int main() {
-    int a = 5;  // Binary: 0000 0101
-    int b = 3;  // Binary: 0000 0011
-    
-    // 0000 0101 & 0000 0011 -> 0000 0001 (1)
-    printf("AND (&): %d\\n", a & b);
-    
-    // 0000 0101 | 0000 0011 -> 0000 0111 (7)
-    printf("OR  (|): %d\\n", a | b);
-    
-    // 0000 0101 ^ 0000 0011 -> 0000 0110 (6)
-    printf("XOR (^): %d\\n", a ^ b);
-    
-    // 0000 0101 -> 0000 1010 (10)
-    printf("Left Shift (<<): %d\\n", a << 1);
-    
+    // Hardware register simulation: 8 flags packed into one byte
+    unsigned char reg = 0b00000000;
+
+    // Set bit 0 (read enable) and bit 2 (interrupt enable)
+    reg |= (1 << 0);   // reg = 0b00000001
+    reg |= (1 << 2);   // reg = 0b00000101
+
+    printf("After setting bits 0 and 2: 0x%02X\\n", reg);  // 0x05
+
+    // Test if bit 2 is set
+    if (reg & (1 << 2))
+        printf("Interrupt enabled\\n");
+
+    // Clear bit 0 (AND with inverted mask)
+    reg &= ~(1 << 0);  // reg = 0b00000100
+    printf("After clearing bit 0: 0x%02X\\n", reg);  // 0x04
+
+    // Toggle bit 2
+    reg ^= (1 << 2);   // reg = 0b00000000
+    printf("After toggling bit 2: 0x%02X\\n", reg);  // 0x00
+
+    // Shifts as fast multiplication/division
+    int x = 1;
+    printf("1 << 0 = %d\\n", x << 0);  // 1
+    printf("1 << 3 = %d\\n", x << 3);  // 8
+    printf("1 << 8 = %d\\n", x << 8);  // 256
+
     return 0;
 }`,
-                    output: "AND (&): 1\nOR  (|): 7\nXOR (^): 6\nLeft Shift (<<): 10"
+                    output: "After setting bits 0 and 2: 0x05\nInterrupt enabled\nAfter clearing bit 0: 0x04\nAfter toggling bit 2: 0x00\n1 << 0 = 1\n1 << 3 = 8\n1 << 8 = 256"
                 },
                 {
                     title: "sizeof Operator",
@@ -216,7 +228,7 @@ int main() {
         {
             id: "multi-arrays",
             title: "Multi-Dimensional Arrays",
-            explanation: "A 2D array is an array of arrays. Where a regular array is a single row of data, a 2D array is a grid — rows and columns, like a spreadsheet, a game board, or a pixel image. They're declared and accessed with two index values, and under the hood they're stored as a flat block of memory that C navigates with arithmetic.",
+            explanation: "A 2D array is the natural way to represent anything inherently grid-shaped: a game board, a matrix of numbers, a pixel image, a spreadsheet, a table of data. C stores a 2D array as a flat, contiguous block of memory in row-major order — all elements of row 0 come first, immediately followed by row 1, and so on. This storage layout has a direct performance consequence: iterating across a row is fast (sequential memory access, cache-friendly) while iterating down a column is slow (jumps of row-width bytes on every step, causing cache misses). Understanding the memory layout is not just trivia — on large arrays the difference between row-major and column-major traversal is measurable and sometimes dramatic.",
             sections: [
                 {
                     title: "Declaring 2D Arrays",
@@ -268,7 +280,7 @@ int main() {
         {
             id: "recursion",
             title: "Recursion",
-            explanation: "Recursion is when a function calls itself. This sounds circular to the point of being illegal, but it's perfectly valid and surprisingly powerful. The key insight is that the function calls itself with a simpler or smaller version of the problem each time, until it reaches a case so simple it doesn't need to recurse anymore.",
+            explanation: "Recursion is a function calling itself. This is not circular — each call gets its own stack frame with its own local variables and its own return address, so every active call is completely independent. The power of recursion is that some problems have a naturally self-similar structure: a directory tree is a directory containing files and other directory trees; a JSON object can contain other JSON objects; a binary search tree node has a left subtree and a right subtree that are themselves binary search trees. For these problems, the recursive solution maps directly to the structure of the data and is shorter and clearer than any loop-based alternative. The cost is stack space: each recursive call adds a frame to the call stack, and deep recursion (thousands of levels) can exhaust the stack. Understanding when recursion is the right tool — and when it would create stack overflow risk — is a key judgement call in systems programming.",
             sections: [
                 {
                     title: "The Concept",
@@ -309,7 +321,7 @@ int main() {
         {
             id: "storage-classes",
             title: "Storage Classes",
-            explanation: "Storage classes control two things about a variable: where it lives in memory, and how long it stays alive. Every variable in C has a storage class — usually determined automatically, but you can override it. Understanding this is what separates someone who knows C syntax from someone who understands how C programs actually execute.",
+            explanation: "Every variable in C has a storage class — a property that determines two things: where in memory it lives, and how long it persists. Most of the time the compiler infers the storage class automatically from where you declare the variable. But understanding what those defaults are, and how to override them, explains a whole class of behaviour that otherwise looks mysterious: why a local variable is gone after a function returns, why a <code>static</code> local remembers its value across calls, why a global in one file can be hidden from other files, and why <code>errno</code> works correctly in multithreaded programs without locks.",
             sections: [
                 {
                     title: "Automatic (auto)",
@@ -480,7 +492,7 @@ int main(void) {
         {
             id: "scope",
             title: "Scope, Lifetime, and assert()",
-            explanation: "Scope is about visibility: from where in the code can a variable be seen? Lifetime is about time: how long does it exist in memory? These two concepts are related but distinct. We'll also cover <code>assert()</code> here — a debugging tool that checks invariants about your program's state and crashes loudly when they're violated.",
+            explanation: "Scope and lifetime are two separate properties of a variable that are often confused because they usually move together. Scope is a compile-time concept: which parts of the source code can name this variable? Lifetime is a runtime concept: how long does the memory for this variable actually exist? A local variable has both block scope and automatic lifetime — it is visible only inside its block and its memory is reclaimed when execution leaves that block. A global has file scope (or program scope with <code>extern</code>) and static lifetime — it exists for the entire run of the program. Getting these concepts clear is what lets you understand why returning a pointer to a local variable is always wrong, why static local variables persist, and why shadowing a global with a local of the same name produces confusing bugs.",
             sections: [
                 {
                     title: "Local vs Global",
@@ -576,7 +588,7 @@ int main() {
         {
             id: "multi-file",
             title: "Multi-File Programs and Header Files",
-            explanation: "Every program so far has been a single <code>.c</code> file. Real programs are not. A production codebase might have hundreds of <code>.c</code> files, each responsible for one area of functionality. C's mechanism for splitting a program across multiple files is simple but has rules that bite hard when ignored. Understanding how translation units, <code>extern</code>, and header files work is what lets you write code that scales beyond one file.",
+            explanation: "Every program so far has lived in a single <code>.c</code> file. That works up to a few hundred lines, then it becomes unmanageable. Real software splits code across many files — each file handles one coherent area of responsibility. The C compiler processes one file at a time, producing one object file per source file, and the linker combines them into the final executable. This compilation model is simple but has strict rules: the compiler must see a declaration of every function and variable before you use it, even if the definition is in a different file. Failing to follow these rules produces either compilation errors ('undeclared identifier') or linker errors ('undefined reference'), and knowing which stage produces which error tells you exactly what to fix.",
             sections: [
                 {
                     title: "Translation Units",
@@ -708,7 +720,7 @@ int get_count() {
         {
             id: "goto",
             title: "goto and Labels",
-            explanation: "<code>goto</code> is C's unconditional jump. It transfers execution directly to a labelled statement anywhere within the same function. It is the most controversial statement in C — Dijkstra's 1968 letter 'Go To Statement Considered Harmful' made it radioactive in academic circles. But reality is more nuanced: <code>goto</code> in C has one genuinely legitimate, widely-used pattern, and it's worth knowing.",
+            explanation: "<code>goto</code> is C's unconditional jump — it transfers execution to a labelled statement anywhere in the same function. Dijkstra's 1968 paper 'Go To Statement Considered Harmful' condemned it, and in most contexts that condemnation holds: using <code>goto</code> to implement loops or mimic conditionals produces spaghetti code that is impossible to reason about. But C has exactly one legitimate, widely-used <code>goto</code> pattern that has survived all attempts to replace it with cleaner alternatives. That pattern is centralised cleanup on error: when a function acquires multiple resources in sequence and any acquisition can fail, <code>goto cleanup</code> jumps to a single cleanup block at the bottom of the function. This avoids deeply nested if-else chains or duplicated cleanup code. The Linux kernel uses this pattern thousands of times. You need to recognise it.",
             sections: [
                 {
                     title: "The Syntax",
@@ -786,7 +798,7 @@ cleanup:
         {
             id: "vla-compound",
             title: "Variable Length Arrays and Compound Literals",
-            explanation: "Two C99 features that are genuinely useful but often missing from tutorials. Variable Length Arrays (VLAs) let you create stack arrays whose size is determined at runtime instead of compile time. Compound literals let you create temporary unnamed objects inline — arrays and structs without declaring a named variable. Both are part of the language, both appear in real code, and both have important caveats.",
+            explanation: "Two C99 features that address genuine ergonomic problems but come with important trade-offs. Variable Length Arrays (VLAs) solve the 'I need a stack array whose size depends on runtime input' problem without the overhead of <code>malloc</code>/<code>free</code>. They were made optional in C11 — many embedded toolchains do not support them — and they carry a real risk of stack overflow for large inputs. Compound literals solve a different problem: passing a struct or array literal directly to a function call, without declaring a named throwaway variable just to hold the value for one call site. Both features appear in real code and are worth recognising, even if you use them selectively.",
             sections: [
                 {
                     title: "Variable Length Arrays (VLAs)",
@@ -859,7 +871,7 @@ int main() {
         {
             id: "makefile",
             title: "Build Automation with Make",
-            explanation: "Once a project spans more than two files, typing <code>gcc a.c b.c c.c d.c -o program</code> by hand is tedious, error-prone, and doesn't scale. More critically, it recompiles everything every time — even files you didn't touch. <code>make</code> is the standard Unix build tool for C. You write a <code>Makefile</code> that describes what to build, how to build it, and which files depend on which others. <code>make</code> then figures out the minimum set of files that need recompiling and does only that.",
+            explanation: "Once a project spans more than one or two files, manually typing the full compile command becomes painful and error-prone. Worse, it recompiles every file every time — even files you haven't touched since the last build. For a large project, a full rebuild might take minutes. <code>make</code> solves both problems: you write a <code>Makefile</code> that describes what each output file depends on and how to build it, and <code>make</code> compares file timestamps to determine the minimum set of files that actually need recompiling. Only changed files and their dependents are rebuilt. <code>make</code> is the standard C build tool on Unix systems and has been since the 1970s — understanding it is a professional requirement for C development.",
             sections: [
                 {
                     title: "The Core Concept: Rules",

@@ -5,207 +5,322 @@ const ModuleEarlyIntermediate = {
         {
             id: "loops",
             title: "Loops",
-            explanation: "Imagine you have to print 'Hello' 100 times. Writing <code>printf</code> 100 times would be stupid, time-consuming, and embarrassing to show anyone. Loops solve this by repeating a block of code automatically. This concept is called <strong>Iteration</strong>, and it's one of the most powerful ideas in all of programming.",
+            explanation: "Almost all useful programs repeat operations: process every line in a file, check every element in a list, retry an operation until it succeeds, count down from a timer. Without loops you would have to write out each repetition by hand, which is obviously impossible for any real-scale task. Loops are the mechanism that makes programs scale — the same code that processes one item processes a million items. At the machine level, a loop is just a conditional jump back to an earlier instruction, but at the source level the three C loop types — <code>while</code>, <code>for</code>, and <code>do-while</code> — each express a different pattern of repetition with different clarity for different use cases. Choosing the right one is a readability decision, not a correctness one.",
             sections: [
                 {
-                    title: "The While Loop",
-                    content: "The <code>while</code> loop is the simplest loop. Think of it as an <code>if</code> statement that refuses to stop until the condition is false. It checks the condition first, runs the block if true, then goes back and checks again. Repeat until the condition fails, then move on.",
+                    title: "The while Loop",
+                    content: "The <code>while</code> loop is the most fundamental: check a condition, execute the body if true, repeat. It is the right choice when you do not know in advance how many iterations you need — 'keep reading input until the user types quit', 'keep retrying until the connection succeeds', 'keep processing until the buffer is empty'. The condition is evaluated <em>before</em> each iteration, so if it is false from the start, the body never runs at all.",
                     points: [
-                        "<strong>Syntax</strong>: <code>while (condition) { ... }</code> — as long as the condition is true (non-zero), the block keeps running.",
-                        "<strong>Rule</strong>: Every time the block finishes executing, the condition is checked again from scratch. If it's still true, another round begins.",
-                        "<strong>Danger</strong>: If nothing inside the loop ever makes the condition false, you have an <strong>Infinite Loop</strong>. The program will run forever, consuming CPU, and the only way out is killing the process. This is not a theoretical concern — it happens to everyone."
+                        "<strong>Syntax</strong>: <code>while (condition) { ... }</code>. As long as the condition is non-zero, the body executes and then the condition is re-evaluated.",
+                        "<strong>The loop variable must change</strong>: Every loop must have a way to eventually make the condition false. Something inside the body must move you toward the exit. If nothing changes the condition, you have an infinite loop — the program runs forever consuming CPU and never terminates.",
+                        "<strong>Zero-iteration loops are valid</strong>: If the condition is false before the first iteration, the body is skipped entirely. This is correct and expected behaviour — not a bug."
                     ],
                     code: `#include <stdio.h>
 
 int main() {
+    // Classic countdown — condition known, but while expresses it clearly
     int countdown = 5;
-    
-    // "While countdown is greater than 0, do this"
     while (countdown > 0) {
-        printf("%d...\\n", countdown);
-        countdown--; // CRITICAL: Subtract 1 each time
+        printf("%d... ", countdown);
+        countdown--;   // moves toward the exit condition
     }
-    
-    printf("Blastoff!\\n");
+    printf("Launch!\\n");
+
+    // Useful pattern: process until a sentinel value
+    int values[] = {4, 7, -1, 3, 9, -1};  // -1 is the "stop" sentinel
+    int i = 0;
+    int sum = 0;
+    while (values[i] != -1) {
+        sum += values[i];
+        i++;
+    }
+    printf("Sum before sentinel: %d\\n", sum);  // 4+7 = 11
+
+    // Zero-iteration: condition is false immediately, body never runs
+    int n = 0;
+    while (n > 0) {
+        printf("This never prints.\\n");
+        n--;
+    }
+    printf("Loop skipped entirely (n was already 0).\\n");
+
     return 0;
 }`,
-                    output: "5...\n4...\n3...\n2...\n1...\nBlastoff!",
-                    warning: "If you forget <code>countdown--;</code>, the value stays 5 forever. The condition <code>countdown > 0</code> is always true, the loop never stops, and your program becomes an expensive space heater. Always make sure something inside the loop moves you toward the exit condition."
+                    output: "5... 4... 3... 2... 1... Launch!\nSum before sentinel: 11\nLoop skipped entirely (n was already 0).",
+                    warning: "The most common while-loop bug is forgetting to update the loop variable. If <code>countdown</code> is never decremented, the condition <code>countdown > 0</code> is always true. The program loops forever. On Linux/macOS you can kill it with Ctrl+C; on embedded hardware it will freeze the device."
                 },
                 {
-                    title: "The For Loop",
-                    content: "The <code>for</code> loop is the loop you'll use most often. It's designed for situations where you know exactly how many iterations you want — 'do this 10 times', 'go through every element of this array'. It bundles the three things every counted loop needs into one clean line: where to start, when to stop, and how to advance.",
+                    title: "The for Loop",
+                    content: "The <code>for</code> loop packages the three things every counted loop needs — where to start, when to stop, how to advance — into a single header line. This makes the loop's entire lifecycle visible at a glance without having to scan the body. It is the right choice when you know exactly how many iterations you need, or when you are iterating over an index-based structure like an array. The three parts of the header are separated by semicolons and each is optional — you can omit any of them, though that usually means a <code>while</code> loop would express your intent more clearly.",
                     points: [
-                        "<strong>Initialization</strong>: Runs exactly once, before the loop starts. This is where you create and set your counter variable (e.g., <code>int i = 0</code>). The variable <code>i</code> is conventional but not required — it stands for 'index'.",
-                        "<strong>Condition</strong>: Checked before every single iteration. If true, the body runs. If false, the loop ends immediately. If false on the very first check, the body never runs at all.",
-                        "<strong>Update</strong>: Runs after every iteration, just before the condition is checked again. Usually <code>i++</code>, but you can do anything here — count down, skip by 2, whatever the problem demands."
+                        "<strong>Initialization</strong>: Executes exactly once before the loop starts. Typically creates and sets the counter variable. <code>int i = 0</code> is conventional — <code>i</code> stands for 'index'.",
+                        "<strong>Condition</strong>: Evaluated before every iteration. If false (zero), the loop ends. If the condition is false on the very first check, the body never runs.",
+                        "<strong>Update</strong>: Executes after the body, before the condition is re-checked. Typically increments or decrements the counter. <code>i++</code> is the most common, but you can count backward (<code>i--</code>), skip (<code>i += 2</code>), or multiply (<code>i *= 2</code>)."
                     ],
                     code: `#include <stdio.h>
 
 int main() {
-    // (Start at 1; Keep going while <= 5; Add 1 each time)
-    for (int i = 1; i <= 5; i++) {
-        printf("Iteration number %d\\n", i);
+    // Standard ascending loop — iterate over indices 0 to 4
+    printf("Forward: ");
+    for (int i = 0; i < 5; i++) {
+        printf("%d ", i);
     }
-    
+    printf("\\n");
+
+    // Descending — count backwards
+    printf("Backward: ");
+    for (int i = 4; i >= 0; i--) {
+        printf("%d ", i);
+    }
+    printf("\\n");
+
+    // Skip by 2 — only even numbers
+    printf("Evens: ");
+    for (int i = 0; i <= 10; i += 2) {
+        printf("%d ", i);
+    }
+    printf("\\n");
+
+    // Compute sum of 1..100 — a real use case, not just printing
+    int sum = 0;
+    for (int i = 1; i <= 100; i++) {
+        sum += i;
+    }
+    printf("1 + 2 + ... + 100 = %d\\n", sum);  // 5050
+
     return 0;
 }`,
-                    output: "Iteration number 1\nIteration number 2\nIteration number 3\nIteration number 4\nIteration number 5"
+                    output: "Forward: 0 1 2 3 4 \nBackward: 4 3 2 1 0 \nEvens: 0 2 4 6 8 10 \n1 + 2 + ... + 100 = 5050",
+                    tip: "The classic off-by-one errors: <code>i < N</code> gives you exactly N iterations (0 to N-1). <code>i <= N</code> gives you N+1 iterations (0 to N). For array traversal always use <code>i < arraySize</code> — arrays are zero-indexed and <code>arr[arraySize]</code> is one past the end."
                 },
                 {
                     title: "Do-While Loop",
-                    content: "The do-while loop is the oddball of the family. Unlike <code>while</code> and <code>for</code>, which check the condition before running the body, the do-while checks the condition after. This guarantees the body runs at least once, no matter what. The practical use case is almost always interactive menus: you always need to display the menu at least once before you know what the user chose.",
+                    content: "The <code>do-while</code> loop executes the body first, then checks the condition. This guarantees the body runs at least once regardless of the condition's initial value. The practical difference from <code>while</code> is exactly one guaranteed execution — use it when you always need to do something at least once before you can determine whether to continue. Interactive input prompts and retry loops are the clearest real-world use cases.",
                     code: `#include <stdio.h>
 
 int main() {
     int choice;
-    
+
+    // Menu: must display at least once before we know what user wants
     do {
-        printf("1. Play Game\\n");
-        printf("2. Exit\\n");
-        printf("Enter choice: ");
+        printf("\\n--- Menu ---\\n");
+        printf("1. Say Hello\\n");
+        printf("2. Say Goodbye\\n");
+        printf("3. Exit\\n");
+        printf("Choice: ");
         scanf("%d", &choice);
-    } while (choice != 2); // Keep going if they didn't pick 2
-    
-    printf("Goodbye!\\n");
+
+        if (choice == 1) printf("Hello!\\n");
+        if (choice == 2) printf("Goodbye!\\n");
+    } while (choice != 3);
+
+    printf("Exiting.\\n");
     return 0;
-}`
+}`,
+                    tip: "The key distinction: <code>while</code> may execute zero times (if the condition starts false). <code>do-while</code> always executes at least once. For most loops, <code>while</code> or <code>for</code> is clearer. Reach for <code>do-while</code> specifically when zero iterations would be wrong."
                 },
                 {
                     title: "Nested Loops",
-                    content: "You can put a loop inside another loop. The inner loop runs to completion for every single iteration of the outer loop. The classic mental model: a clock. For every one move of the hour hand, the minute hand completes a full 60-step cycle. Same idea here. For every round of the outer loop, the inner loop does all of its rounds. The total number of iterations is outer × inner.",
+                    content: "A loop inside another loop. The inner loop runs to full completion for every single iteration of the outer loop. If the outer runs M times and the inner runs N times, the inner body executes M×N times total. This is the natural structure for anything two-dimensional: grids, matrices, multiplication tables, 2D game boards. The inner loop variable is independent of the outer — each has its own counter.",
                     code: `#include <stdio.h>
 
 int main() {
-    // Outer loop runs 3 times (Rows)
-    for (int i = 1; i <= 3; i++) {
-        // Inner loop runs 5 times (Columns)
-        for (int j = 1; j <= 5; j++) {
-            printf("* ");
+    // Print a multiplication table
+    printf("   ");
+    for (int col = 1; col <= 5; col++) printf("%4d", col);
+    printf("\\n   ");
+    for (int col = 1; col <= 5; col++) printf("----");
+    printf("\\n");
+
+    for (int row = 1; row <= 5; row++) {
+        printf("%2d|", row);
+        for (int col = 1; col <= 5; col++) {
+            printf("%4d", row * col);  // inner body: M*N = 25 total executions
         }
-        // Print a newline after each row is finished
         printf("\\n");
     }
     return 0;
 }`,
-                    output: "* * * * * \n* * * * * \n* * * * * "
+                    output: "      1   2   3   4   5\n   ----------------\n 1|   1   2   3   4   5\n 2|   2   4   6   8  10\n 3|   3   6   9  12  15\n 4|   4   8  12  16  20\n 5|   5  10  15  20  25",
+                    tip: "Nested loops have O(n²) complexity — doubling the input size quadruples the work. For small grids this is fine. For large data sets it becomes a performance problem quickly. When you find yourself writing triple-nested loops, stop and think whether there is a smarter algorithm."
                 }
             ]
         },
         {
             id: "break-continue",
             title: "Loop Control",
-            explanation: "Loops run until their condition becomes false — that's the normal path. But sometimes you need to deviate: exit a loop early because you found what you were looking for, or skip the rest of the current iteration because the current value is useless. <code>break</code> and <code>continue</code> give you that control.",
+            explanation: "The <code>break</code> and <code>continue</code> statements give you surgical control over loop execution that the condition expression alone cannot provide. The condition governs whether a new iteration starts at all — but once inside the body, you sometimes discover mid-execution that you either need to stop the entire loop or skip the rest of this particular iteration. Without <code>break</code> and <code>continue</code>, the only alternative would be convoluted boolean flags that make the code harder to read. These keywords make intent explicit: 'I am done' (<code>break</code>) or 'this item doesn't qualify, move on' (<code>continue</code>).",
             sections: [
                 {
-                    title: "Break",
-                    content: "The <code>break</code> statement is an emergency exit. The moment the program hits <code>break</code>, it immediately leaves the loop — no remaining iterations, no condition check, nothing. Execution jumps to whatever code comes after the loop's closing brace. This is useful when you're searching for something: once you've found it, there's no reason to keep looking.",
+                    title: "break — Exit the Loop Immediately",
+                    content: "<code>break</code> jumps execution to the first statement after the loop's closing brace. No remaining iterations run. No condition is re-checked. It is particularly useful for search loops — once you have found what you were looking for, there is no point processing the rest of the data.",
                     code: `#include <stdio.h>
 
 int main() {
-    for (int i = 0; i < 10; i++) {
-        if (i == 4) {
-            printf("Stopping early!\\n");
-            break; // Exit the loop right now
+    // Linear search: find the first negative number
+    int data[] = {3, 7, 2, -5, 8, -1, 4};
+    int size = sizeof(data) / sizeof(data[0]);
+    int found_at = -1;
+
+    for (int i = 0; i < size; i++) {
+        if (data[i] < 0) {
+            found_at = i;
+            break;   // Stop the moment we find one — no need to continue
         }
-        printf("%d ", i);
     }
+
+    if (found_at >= 0)
+        printf("First negative at index %d: %d\\n", found_at, data[found_at]);
+
+    // break in a while loop — same behaviour
+    int n = 1;
+    while (1) {   // infinite loop — break is the only exit
+        if (n * n > 50) break;
+        n++;
+    }
+    printf("Smallest n where n^2 > 50: %d (n^2 = %d)\\n", n, n * n);
+
     return 0;
 }`,
-                    output: "0 1 2 3 Stopping early!"
+                    output: "First negative at index 3: -5\nSmallest n where n^2 > 50: 8 (n^2 = 64)",
+                    tip: "<code>break</code> only exits the innermost loop. In nested loops, a <code>break</code> inside the inner loop exits the inner loop but the outer loop continues. If you need to exit multiple nested loops at once, <code>goto</code> (the one legitimate use case) or a flag variable are the standard approaches."
                 },
                 {
-                    title: "Continue",
-                    content: "The <code>continue</code> statement doesn't exit the loop — it just skips the rest of the current iteration and jumps back to the top to start the next one. Think of it as 'this value is not worth my time, move on'. The loop itself continues normally; only the current pass is cut short. In a <code>for</code> loop, the update step (<code>i++</code>) still runs after a <code>continue</code>.",
+                    title: "continue — Skip to the Next Iteration",
+                    content: "<code>continue</code> skips the rest of the current iteration's body and jumps straight to the update step (in a <code>for</code> loop) or back to the condition check (in a <code>while</code>). The loop itself does not end — only this iteration is cut short. Use it to filter out items that do not qualify for processing, keeping the main logic unindented and readable.",
                     code: `#include <stdio.h>
 
 int main() {
-    // Print only odd numbers
-    for (int i = 0; i < 10; i++) {
-        // If i is even, skip the print statement
-        if (i % 2 == 0) {
-            continue; // Jump to i++ immediately
-        }
-        printf("%d ", i);
+    // Print only numbers divisible by 3, skip the rest
+    printf("Multiples of 3 up to 20: ");
+    for (int i = 1; i <= 20; i++) {
+        if (i % 3 != 0) continue;   // skip non-multiples
+        printf("%d ", i);            // only reached for multiples
     }
+    printf("\\n");
+
+    // Sum only positive numbers in an array, ignore negatives
+    int values[] = {4, -2, 7, -8, 1, 5, -3, 6};
+    int n = sizeof(values) / sizeof(values[0]);
+    int sum = 0;
+
+    for (int i = 0; i < n; i++) {
+        if (values[i] < 0) continue;  // skip negatives
+        sum += values[i];
+    }
+    printf("Sum of positive values: %d\\n", sum);  // 4+7+1+5+6 = 23
+
     return 0;
 }`,
-                    output: "1 3 5 7 9"
+                    output: "Multiples of 3 up to 20: 3 6 9 12 15 18 \nSum of positive values: 23"
                 }
             ]
         },
         {
             id: "functions",
             title: "Functions",
-            explanation: "Functions are reusable, named blocks of code that do a specific job. Instead of copying and pasting the same logic in three different places (and then having to fix it in three places when it breaks), you write it once as a function and call it whenever you need it. This is the <strong>DRY Principle</strong> — Don't Repeat Yourself. It's one of the most important principles in all of software development, and functions are the primary tool for following it in C.",
+            explanation: "A function is a named, reusable block of code that performs a specific, well-defined task. The single most important reason functions exist is that without them, every program would be one long sequence of statements, and any logic you needed to repeat would have to be copied. Copy-pasted code is one of the most expensive problems in software — when the logic has a bug or needs changing, you must find and fix every copy. Functions solve this: write the logic once, call it everywhere, fix it in one place. But functions provide far more than just code reuse. They give you the ability to decompose a complex problem into manageable sub-problems, name those sub-problems meaningfully, and reason about each one independently. A well-named function is documentation — <code>calculateInterest(principal, rate, years)</code> is self-explanatory in a way that 50 lines of arithmetic never is.",
             sections: [
                 {
                     title: "Anatomy of a Function",
-                    content: "A function is like a vending machine: you put something in (arguments), it does work, and it gives something back (return value). To create one, you define four things: what it returns, what it's called, what it takes as input, and what it does.",
+                    content: "Every function definition has four parts: the return type (what it gives back), the name (how you call it), the parameter list (what it takes in), and the body (what it does). When a function reaches a <code>return</code> statement, execution jumps back to the caller and the returned value is substituted in place of the function call. A function can be called any number of times from anywhere in the program — each call is independent.",
                     points: [
-                        "<strong>Return Type</strong>: The data type of the value the function sends back to the caller. <code>int</code> if it returns a whole number, <code>float</code> for decimals, <code>char</code> for a character, and <code>void</code> if it doesn't return anything at all.",
-                        "<strong>Name</strong>: How you refer to the function when calling it. Same naming rules as variables — descriptive names like <code>calculateArea</code> are far better than <code>f</code>.",
-                        "<strong>Parameters</strong>: The variables that hold whatever values you pass in. They exist only for the duration of that function call. They're the function's inputs."
+                        "<strong>Return type</strong>: Tells the compiler what type of value this function produces. <code>int</code> for whole numbers, <code>double</code> for decimals, <code>char</code> for a single character, <code>void</code> for 'produces nothing'. The caller uses the return value in an expression or assignment.",
+                        "<strong>Name</strong>: Follows the same rules as variable names. Descriptive names are not optional — <code>computeMonthlyPayment</code> is infinitely better than <code>calc</code> when you are reading code six months later.",
+                        "<strong>Parameters</strong>: The inputs, declared exactly like local variables. Each call provides its own values for these — they are copies, not the originals (covered in 'Pass by Value' below).",
+                        "<strong>Body</strong>: Any statements the function needs. Local variables declared here exist only for the duration of this call and are destroyed when the function returns."
                     ],
                     code: `#include <stdio.h>
 
-// Function Definition (The Blueprint)
+// A function that takes two ints and returns their sum
 int add(int a, int b) {
-    int sum = a + b;
-    return sum; // Send the result back
+    return a + b;
+}
+
+// A function that computes the area of a rectangle
+double rectangleArea(double width, double height) {
+    return width * height;
+}
+
+// A function that returns the larger of two values
+int max(int x, int y) {
+    if (x > y) return x;
+    else        return y;
 }
 
 int main() {
-    int result;
-    
-    result = add(10, 20); 
-    printf("Result: %d\\n", result);
-    
-    result = add(5, 7);
-    printf("Another result: %d\\n", result);
-    
+    printf("3 + 4 = %d\\n", add(3, 4));
+    printf("Area: %.2f\\n", rectangleArea(5.0, 3.5));
+    printf("Max of 10 and 7: %d\\n", max(10, 7));
+
+    // Return values can be used in expressions directly
+    int total = add(10, 20) + add(5, 5);
+    printf("Total: %d\\n", total);  // add(10,20)=30, add(5,5)=10, total=40
+
     return 0;
 }`,
-                    output: "Result: 30\nAnother result: 12"
+                    output: "3 + 4 = 7\nArea: 17.50\nMax of 10 and 7: 10\nTotal: 40"
                 },
                 {
-                    title: "Void Functions",
-                    content: "Not every function needs to calculate and return a value. Sometimes you just want to perform an action — print something, draw a separator line, update a display. Functions that do work without returning a value use the <code>void</code> return type. You can't use them on the right side of an assignment, and you don't write a <code>return</code> statement (or you write <code>return;</code> with no value if you want to exit early).",
+                    title: "Void Functions — Actions Without Results",
+                    content: "Not every function computes and returns a value. Some functions exist purely to perform a side effect — print a report, draw a UI element, write to a file, play a sound. These use the <code>void</code> return type, which tells the compiler and the reader 'this function does something, it does not produce a value you can use in an expression'. Void functions improve readability by naming procedures: instead of 50 lines of printf scattered through main, you have a single call to <code>printInvoice()</code>.",
                     code: `#include <stdio.h>
 
-// No return value needed
-void greet(char name[]) {
-    printf("Hello, %s!\\n", name);
+// Prints a formatted separator line
+void printSeparator(int width) {
+    for (int i = 0; i < width; i++) printf("-");
+    printf("\\n");
+}
+
+// Prints a complete receipt — naming this procedure makes main() readable
+void printReceipt(char item[], double price, int qty) {
+    printSeparator(30);
+    printf("Item:     %-15s\\n", item);
+    printf("Price:    $%.2f\\n", price);
+    printf("Qty:      %d\\n", qty);
+    printf("Subtotal: $%.2f\\n", price * qty);
+    printSeparator(30);
 }
 
 int main() {
-    greet("Alice");
-    greet("Bob");
+    printReceipt("Widget Pro", 9.99, 3);
+    printReceipt("Gadget Ultra", 24.50, 1);
     return 0;
 }`,
-                    output: "Hello, Alice!\nHello, Bob!"
+                    output: "------------------------------\nItem:     Widget Pro      \nPrice:    $9.99\nQty:      3\nSubtotal: $29.97\n------------------------------\n------------------------------\nItem:     Gadget Ultra    \nPrice:    $24.50\nQty:      1\nSubtotal: $24.50\n------------------------------",
+                    tip: "Void functions can still have an early <code>return;</code> (no value) to exit before reaching the end — useful when a precondition fails: <code>if (qty <= 0) return;</code>. This avoids deeply nested if-else blocks."
                 },
                 {
-                    title: "Pass by Value",
-                    content: "In C, when you pass a variable to a function, the function receives a full, independent copy of that value. It does not get the original. Whatever the function does to its copy — modifying it, zeroing it, multiplying it by a thousand — has zero effect on the variable that was passed in. They are completely separate after the copy is made.",
+                    title: "Pass by Value — and Why It Matters",
+                    content: "When you call a function and pass a variable, C copies the value into the function's parameter. The function receives its own independent copy — it cannot reach back and change the original. This isolation is a feature, not a limitation: it means functions cannot accidentally corrupt their caller's data, and you can reason about a function's behaviour by looking at it alone. However, there are cases where you genuinely need a function to modify the caller's variable — for example, a <code>swap</code> function or a function that fills in multiple output values. The answer is pointers, covered in the Low-Level Core module. Understanding pass-by-value first makes the purpose of pointers obvious.",
                     code: `#include <stdio.h>
 
-void tryToChange(int x) {
-    x = 100; // This changes the COPY, not the original
-    printf("Inside function: %d\\n", x);
+// This function receives a COPY of x — it cannot change the caller's variable
+void tryToDouble(int x) {
+    x = x * 2;
+    printf("Inside tryToDouble: x = %d\\n", x);  // 20
+}
+
+// This function returns the modified value — a clean alternative to mutation
+int doubled(int x) {
+    return x * 2;
 }
 
 int main() {
-    int num = 5;
-    tryToChange(num);
-    
-    // num is still 5!
-    printf("Inside main: %d\\n", num);
+    int value = 10;
+
+    tryToDouble(value);
+    printf("After tryToDouble: value = %d\\n", value);  // Still 10!
+
+    // The clean solution when you need the result: use the return value
+    int new_value = doubled(value);
+    printf("doubled(10) returned: %d\\n", new_value);   // 20
+    printf("original value unchanged: %d\\n", value);   // Still 10
+
     return 0;
 }`,
-                    output: "Inside function: 100\nInside main: 5",
-                    tip: "This is not a limitation to work around — it's actually useful. Functions being isolated from their callers prevents a lot of accidental bugs. But sometimes you genuinely need a function to modify the original variable. To do that, you pass the variable's memory address instead of its value, which is the entire point of pointers. We cover that in the Low-Level module, and it will make this moment click into place.",
-                    tip: "If you need a function to modify the original variable, the answer is pointers — pass the variable's address instead of its value. That's covered in the Low-Level Core module under 'Pointers and Functions'."
+                    output: "Inside tryToDouble: x = 20\nAfter tryToDouble: value = 10\ndoubled(10) returned: 20\noriginal value unchanged: 10",
+                    tip: "Pass-by-value is why functions are safe to compose — <code>max(add(3,4), add(5,2))</code> works without any risk of the inner calls interfering with each other. When you do need a function to modify the caller's variable, the idiom is to pass a pointer to the variable (<code>&value</code>) and have the function dereference it. That pattern is in the Low-Level Core module."
                 },
                 {
                     title: "Function Prototypes",
@@ -239,47 +354,75 @@ int add(int a, int b) {
         {
             id: "arrays",
             title: "Arrays",
-            explanation: "An array is a collection of variables of the <strong>same type</strong> stored contiguously in memory — one right after another, no gaps. Instead of declaring 10 separate integer variables, you declare one array of 10 integers. Think of it as a row of numbered lockers: all the same size, right next to each other, each identified by its number.",
+            explanation: "Consider storing the scores of 100 students. Without arrays, you would need 100 separate variables — <code>score1</code>, <code>score2</code>, ..., <code>score100</code> — and every piece of logic that processes them would need to repeat 100 times. There is no way to loop over them, no way to pass them all to a function conveniently, and adding a 101st student requires editing dozens of lines. Arrays solve this by grouping elements of the same type under one name, addressable by index. An array is not just a syntactic convenience — it is a <em>contiguous block of memory</em> where each element sits immediately after the previous one. This layout is the reason arrays are fast: iterating through them in order accesses memory sequentially, which is exactly what the CPU's cache is optimised for.",
             sections: [
                 {
-                    title: "Declaration and Access",
-                    content: "Arrays are declared with the type, a name, and the size in square brackets. Each element is accessed using an index — its position number. The critical thing to internalize immediately: <strong>C arrays start at index 0</strong>, not 1. The first element is <code>arr[0]</code>, the second is <code>arr[1]</code>, and for an array of size N, the last element is <code>arr[N-1]</code>. This trips people up for longer than you'd expect.",
+                    title: "Declaration, Initialization, and Access",
+                    content: "An array declaration reserves a contiguous block of memory for N elements of the specified type. The elements are addressed by integer indices starting at 0. Accessing an element by index is a constant-time operation — the CPU computes the address as <code>base_address + (index × element_size)</code> in a single instruction. This is why arrays are the fastest data structure for random access.",
                     code: `#include <stdio.h>
 
 int main() {
-    // Declare an array of 5 integers
-    int scores[5] = {90, 85, 70, 95, 80};
-    
-    // Access items using [index]
-    printf("First score: %d\\n", scores[0]); // Index 0
-    printf("Third score: %d\\n", scores[2]); // Index 2
-    
-    // Modify an item
-    scores[2] = 75; // Changed 70 to 75
-    
+    // Declare and initialize in one step — size inferred from initializer
+    int scores[] = {90, 85, 70, 95, 80};  // 5 elements, indices 0–4
+
+    // Access elements by index (ZERO-BASED — first element is [0])
+    printf("First:  %d\\n", scores[0]);   // 90
+    printf("Third:  %d\\n", scores[2]);   // 70
+    printf("Last:   %d\\n", scores[4]);   // 80 — for 5 elements, last is [4]
+
+    // Modify an element
+    scores[2] = 75;
+    printf("Third after update: %d\\n", scores[2]);  // 75
+
+    // Partial initialization — unspecified elements become 0
+    int data[10] = {1, 2, 3};  // data[3] through data[9] are all 0
+    printf("data[0]=%d, data[1]=%d, data[5]=%d\\n", data[0], data[1], data[5]);
+
+    // The sizeof trick: total bytes / bytes-per-element = element count
+    int n = sizeof(scores) / sizeof(scores[0]);
+    printf("scores has %d elements\\n", n);
+
     return 0;
 }`,
-                    output: "First score: 90\nThird score: 70"
+                    output: "First:  90\nThird:  70\nLast:   80\nThird after update: 75\ndata[0]=1, data[1]=2, data[5]=0\nscores has 5 elements",
+                    warning: "<strong>Zero-based indexing is not optional.</strong> For an array of size N, valid indices are 0 through N-1. Index N is one past the end. Accessing <code>arr[N]</code> reads memory that does not belong to the array — the program may crash, return garbage, or silently corrupt an adjacent variable. C does not check bounds. Ever."
                 },
                 {
                     title: "Looping Through Arrays",
-                    content: "Loops and arrays are made for each other. The entire point of storing data in an array is so you can process all of it with a loop instead of writing out every element by hand. The standard pattern is a <code>for</code> loop starting at index 0 and stopping before the size. A useful trick: instead of hardcoding the size, compute it using <code>sizeof</code>. <code>sizeof(array)</code> gives the total bytes of the whole array; dividing by <code>sizeof(array[0])</code> gives the number of elements. This way, if you change the array size later, the loop automatically adjusts.",
+                    content: "Loops and arrays are designed for each other. The entire point of grouping data in an array is so a single loop can process all of it — finding the maximum, computing a sum, filtering values — without writing the same logic once per element. The standard pattern: a <code>for</code> loop from 0 to size-1. Compute the size with the <code>sizeof</code> trick in the same scope as the array declaration.",
                     code: `#include <stdio.h>
 
 int main() {
-    int nums[] = {10, 20, 30, 40, 50};
-    
-    // Calculate size: Total bytes / Bytes per item
-    int size = sizeof(nums) / sizeof(nums[0]);
-    
-    printf("All values:\\n");
-    for (int i = 0; i < size; i++) {
-        printf("Index %d: Value %d\\n", i, nums[i]);
+    int scores[] = {88, 72, 95, 61, 79, 84, 67, 91};
+    int n = sizeof(scores) / sizeof(scores[0]);  // 8 elements
+
+    // --- Find maximum ---
+    int max = scores[0];
+    for (int i = 1; i < n; i++) {
+        if (scores[i] > max) max = scores[i];
     }
-    
+    printf("Highest score: %d\\n", max);
+
+    // --- Compute average ---
+    int sum = 0;
+    for (int i = 0; i < n; i++) sum += scores[i];
+    printf("Average: %.1f\\n", (double)sum / n);
+
+    // --- Count how many passed (>= 70) ---
+    int passed = 0;
+    for (int i = 0; i < n; i++) {
+        if (scores[i] >= 70) passed++;
+    }
+    printf("Passed: %d / %d\\n", passed, n);
+
+    // --- Print all scores with their index ---
+    for (int i = 0; i < n; i++) {
+        printf("Student %d: %d %s\\n", i + 1, scores[i],
+               scores[i] >= 70 ? "PASS" : "FAIL");
+    }
     return 0;
 }`,
-                    output: "Index 0: Value 10\nIndex 1: Value 20\n..."
+                    output: "Highest score: 95\nAverage: 79.6\nPassed: 6 / 8\nStudent 1: 88 PASS\nStudent 2: 72 PASS\nStudent 3: 95 PASS\nStudent 4: 61 FAIL\nStudent 5: 79 PASS\nStudent 6: 84 PASS\nStudent 7: 67 FAIL\nStudent 8: 91 PASS"
                 },
                 {
                     title: "Array Bounds",
@@ -331,130 +474,185 @@ int main() {
         {
             id: "strings",
             title: "Strings",
-            explanation: "Here's something that surprises almost every newcomer to C: there is no string type. None. In C, a string is just an <strong>array of characters</strong> with a specific ending — a null terminator character <code>\\0</code> — that tells functions 'the string ends here'. Everything that feels basic in other languages (copying, comparing, appending strings) requires explicit function calls here.",
+            explanation: "In most modern languages, a string is a built-in object with its own type, automatic memory management, and built-in methods for copying, comparing, and searching. In C, none of that exists. A C string is a plain array of <code>char</code> that ends with a null byte (<code>'\\0'</code>, value zero). That null byte is the only thing that tells <code>printf</code>, <code>strlen</code>, and every other string function where the string ends — there is no length stored anywhere. This design is intentional: it is minimalist, it has zero overhead, and it maps directly to how processors handle character data. Understanding the null terminator is the key to understanding every C string function, every buffer overflow, and why C string handling requires such deliberate attention.",
             sections: [
                 {
-                    title: "String Declaration",
-                    content: "When you write a string literal in double quotes, C automatically adds the null terminator <code>\\0</code> at the end for you. So <code>\"Hello\"</code> is actually 6 characters, not 5: H, e, l, l, o, and then the invisible <code>\\0</code>. This matters enormously when allocating memory — always account for that extra byte, or you'll be one byte short and overwrite something important.",
+                    title: "String Declaration and the Null Terminator",
+                    content: "When you write a string literal in double quotes, the compiler stores the characters followed by a null byte automatically. <code>\"Hello\"</code> is stored as 6 bytes: <code>'H'</code>, <code>'e'</code>, <code>'l'</code>, <code>'l'</code>, <code>'o'</code>, <code>'\\0'</code>. When you declare a <code>char</code> array to hold a string, you must include space for that extra null byte — <code>char name[6]</code> for a 5-character string. Functions that write strings (like <code>strcpy</code>) write the null terminator for you; functions that read strings (like <code>strlen</code>) stop counting when they hit it.",
                     code: `#include <stdio.h>
+#include <string.h>
 
 int main() {
-    // Implicit size (compiler counts characters + 1 for \\0)
-    char str1[] = "Hello";
-    
-    // This is actually: {'H', 'e', 'l', 'l', 'o', '\\0'}
-    
-    printf("%s\\n", str1);
+    // The compiler infers size: 5 chars + 1 null = 6 bytes total
+    char greeting[] = "Hello";
+
+    printf("String:  %s\\n", greeting);
+    printf("Length:  %zu\\n", strlen(greeting));   // 5 — null not counted
+    printf("Storage: %zu\\n", sizeof(greeting));   // 6 — null IS counted
+
+    // You can inspect individual characters including the null terminator
+    printf("Chars: ");
+    for (int i = 0; i <= (int)strlen(greeting); i++) {
+        if (greeting[i] == '\\0')
+            printf("'\\\\0'");
+        else
+            printf("'%c' ", greeting[i]);
+    }
+    printf("\\n");
+
+    // Manually building a string — must place the null terminator yourself
+    char manual[6];
+    manual[0] = 'W';
+    manual[1] = 'o';
+    manual[2] = 'r';
+    manual[3] = 'l';
+    manual[4] = 'd';
+    manual[5] = '\\0';  // REQUIRED — without this, printf reads garbage
+    printf("Manual: %s\\n", manual);
+
     return 0;
 }`,
-                    output: "Hello"
+                    output: "String:  Hello\nLength:  5\nStorage: 6\nChars: 'H' 'e' 'l' 'l' 'o' '\\0'\nManual: World",
+                    warning: "Always allocate at least <code>strlen(s) + 1</code> bytes when copying a string — the +1 is for the null terminator. Forgetting it means the null byte overwrites memory just past your buffer, corrupting whatever lives there. This class of bug is called a buffer overflow and is the source of a significant fraction of real-world security vulnerabilities."
                 },
                 {
                     title: "String Functions (string.h)",
-                    content: "Since strings are just character arrays, you can't use regular operators on them. <code>str1 = str2</code> doesn't copy a string — it does something confusing with pointers. <code>str1 == str2</code> doesn't compare strings — it compares memory addresses. For actual string operations, you include <code>&lt;string.h&gt;</code> and use the library functions.",
+                    content: "Because strings are arrays, the standard operators do not work on them as you might expect. <code>str1 = str2</code> does not copy a string — it would attempt to assign a pointer, which the compiler rejects for arrays. <code>str1 == str2</code> does not compare string content — it compares memory addresses, almost always producing the wrong answer. All meaningful string operations go through <code>&lt;string.h&gt;</code> functions. The most important ones to memorise and their safe alternatives are below.",
                     code: `#include <stdio.h>
 #include <string.h>
 
 int main() {
     char src[] = "Hello";
-    char dest[20]; // Destination must be big enough!
-    
-    // 1. Get length (excludes \\0)
-    printf("Length: %lu\\n", strlen(src));
-    
-    // 2. Copy string
+    char dest[20];   // Buffer must be large enough for the copy + null byte
+
+    // strlen: count characters, NOT including the null terminator
+    printf("Length of src: %zu\\n", strlen(src));   // 5
+
+    // strcpy: copy src into dest (dest must have space for src + null byte)
     strcpy(dest, src);
-    printf("Copied: %s\\n", dest);
-    
-    // 3. Concatenate (append)
-    strcat(dest, " World");
-    printf("Combined: %s\\n", dest);
-    
-    // 4. Compare (returns 0 if equal)
-    if (strcmp(src, "Hello") == 0) {
-        printf("Strings match!\\n");
-    }
-    
+    printf("Copied: %s\\n", dest);   // Hello
+
+    // strcat: append to dest (dest must have space for both strings + null)
+    strcat(dest, ", World");
+    printf("After strcat: %s\\n", dest);   // Hello, World
+
+    // strcmp: compare contents — returns 0 if equal, <0 or >0 otherwise
+    // Never use == to compare strings!
+    if (strcmp(src, "Hello") == 0) printf("Match!\\n");
+    if (strcmp("apple", "banana") < 0) printf("apple < banana alphabetically\\n");
+
+    // SAFER alternatives: strncpy and strncat limit how many bytes are written
+    char safe[10];
+    strncpy(safe, "This is a very long string", sizeof(safe) - 1);
+    safe[sizeof(safe) - 1] = '\\0';  // strncpy may not null-terminate!
+    printf("Safe copy: %s\\n", safe);   // "This is " — truncated, not overflowed
+
     return 0;
 }`,
-                    output: "Length: 5\nCopied: Hello\nCombined: Hello World\nStrings match!"
+                    output: "Length of src: 5\nCopied: Hello\nAfter strcat: Hello, World\nMatch!\napple < banana alphabetically\nSafe copy: This is ",
+                    warning: "<code>strcpy</code> and <code>strcat</code> will write past the end of the destination buffer if it is not large enough — no error, no warning, just silent memory corruption. Always use <code>strncpy(dest, src, sizeof(dest)-1)</code> and <code>strncat(dest, src, remaining_space)</code> in production code. Even better, use <code>snprintf(dest, sizeof(dest), \"%s\", src)</code> which always null-terminates."
                 },
                 {
                     title: "Character Classification with ctype.h",
-                    content: "Often you need to inspect or manipulate individual characters in a string — check if a character is a digit, convert it to uppercase, skip whitespace. The <code>&lt;ctype.h&gt;</code> header provides a set of functions for exactly this. Every function takes an <code>int</code> (a character value) and returns non-zero for true, 0 for false. They're fast, portable, and save you from writing <code>if (c >= 'a' && c <= 'z')</code> repeatedly.",
+                    content: "Processing text character-by-character is extremely common: validating input (is this all digits?), parsing tokens (is this char a letter or punctuation?), normalising case (convert everything to lowercase). Without <code>&lt;ctype.h&gt;</code> you would write <code>if (c >= 'a' && c <= 'z')</code> — which looks simple but is actually wrong on platforms where letters are not contiguous in the character set. The <code>ctype.h</code> functions are guaranteed correct on every platform and convey intent clearly. Every function takes an <code>int</code> (because <code>char</code> is promoted to <code>int</code> in expressions) and returns a non-zero value for true or 0 for false.",
                     points: [
-                        "<code>isalpha(c)</code>: True if c is a letter (a–z or A–Z).",
-                        "<code>isdigit(c)</code>: True if c is a decimal digit (0–9).",
-                        "<code>isalnum(c)</code>: True if c is a letter or digit.",
-                        "<code>isspace(c)</code>: True if c is whitespace: space, tab, newline, etc.",
-                        "<code>isupper(c)</code> / <code>islower(c)</code>: True if c is uppercase/lowercase.",
-                        "<code>toupper(c)</code> / <code>tolower(c)</code>: Convert case. Returns the converted character, or the original if no conversion applies. Does NOT modify in place — you must assign the result back."
+                        "<code>isalpha(c)</code>: True if c is a letter (A–Z or a–z). Use for word parsing.",
+                        "<code>isdigit(c)</code>: True if c is '0'–'9'. Use for numeric validation without calling atoi on garbage.",
+                        "<code>isalnum(c)</code>: True if letter or digit. Common for identifier validation.",
+                        "<code>isspace(c)</code>: True for space, tab, newline, carriage return, form feed, vertical tab. Use for tokenising input.",
+                        "<code>isupper(c)</code> / <code>islower(c)</code>: Case tests.",
+                        "<code>toupper(c)</code> / <code>tolower(c)</code>: Return the converted character — they do NOT modify in place. You must write <code>c = toupper(c)</code>. If c has no case conversion (e.g. a digit), the original character is returned unchanged."
                     ],
                     code: `#include <stdio.h>
 #include <ctype.h>
 #include <string.h>
 
-// Count digits in a string
-int countDigits(const char *str) {
-    int count = 0;
-    while (*str) {
-        if (isdigit(*str)) count++;
-        str++;
+// Validate that a string looks like a simple identifier: letters, digits, underscores
+int isValidIdentifier(const char *s) {
+    if (!s || !isalpha((unsigned char)s[0]) && s[0] != '_') return 0;
+    for (int i = 1; s[i]; i++) {
+        if (!isalnum((unsigned char)s[i]) && s[i] != '_') return 0;
     }
-    return count;
+    return 1;
 }
 
-// Convert string to uppercase in place
-void toUpper(char *str) {
-    while (*str) {
-        *str = toupper(*str);
-        str++;
+// Convert a string to title case in place (first letter of each word uppercased)
+void titleCase(char *s) {
+    int new_word = 1;
+    for (int i = 0; s[i]; i++) {
+        if (isspace((unsigned char)s[i])) {
+            new_word = 1;
+        } else if (new_word) {
+            s[i] = (char)toupper((unsigned char)s[i]);
+            new_word = 0;
+        } else {
+            s[i] = (char)tolower((unsigned char)s[i]);
+        }
     }
 }
 
 int main() {
-    char text[] = "Hello, World! 123";
-    
-    printf("Original:  %s\\n", text);
-    printf("Digits:    %d\\n", countDigits(text));
-    
-    toUpper(text);
-    printf("Uppercase: %s\\n", text);
-    
-    // Testing individual characters
-    char ch = 'A';
-    printf("\\nisalpha('A') = %d\\n", isalpha(ch));  // non-zero (true)
-    printf("isdigit('A') = %d\\n", isdigit(ch));  // 0 (false)
-    printf("tolower('A') = %c\\n", tolower(ch));  // 'a'
-    
+    // Identifier validation
+    const char *names[] = {"myVar", "123bad", "_ok", "has space", "valid_2"};
+    for (int i = 0; i < 5; i++) {
+        printf("'%s': %s\\n", names[i], isValidIdentifier(names[i]) ? "valid" : "invalid");
+    }
+
+    // Title case conversion
+    char sentence[] = "the quick BROWN fox";
+    titleCase(sentence);
+    printf("\\nTitle case: %s\\n", sentence);
+
     return 0;
 }`,
-                    output: "Original:  Hello, World! 123\nDigits:    3\nUppercase: HELLO, WORLD! 123\n\nisalpha('A') = 1\nisdigit('A') = 0\ntolower('A') = a"
+                    output: "'myVar': valid\n'123bad': invalid\n'_ok': valid\n'has space': invalid\n'valid_2': valid\n\nTitle case: The Quick Brown Fox"
                 },
                 {
-                    title: "Reading Strings",
-                    content: "Reading strings from the user has a major catch: <code>scanf</code> with <code>%s</code> stops reading at the first whitespace character. Type 'John Smith' and you'll only get 'John'. For reading a full line including spaces, use <code>fgets</code> instead. It reads everything up to a newline (or until the buffer is full, whichever comes first), making it both correct and safe.",
+                    title: "Reading Strings and User Input",
+                    content: "<code>scanf(\"%s\", buf)</code> has two problems that make it dangerous for reading user input: it stops at the first whitespace (so 'John Smith' becomes 'John'), and it has no idea how large <code>buf</code> is — if the user types more characters than the buffer can hold, <code>scanf</code> keeps writing past the end of the array, corrupting memory. <code>fgets</code> solves both problems: it reads an entire line including spaces, and takes a maximum byte count so it can never overflow the buffer.",
                     code: `#include <stdio.h>
+#include <string.h>
 
 int main() {
-    char name[50];
-    
-    printf("Enter full name: ");
-    // fgets reads spaces too!
-    // stdin means "standard input" (keyboard)
-    fgets(name, 50, stdin); 
-    
-    printf("Hello, %s", name);
+    char name[20];
+
+    // --- WRONG: scanf("%s") — stops at space, no bounds check ---
+    // scanf("%s", name);  // "John Smith" → only reads "John"
+    //                     // "A very very long name..." → buffer overflow!
+
+    // --- RIGHT: fgets — reads full line, respects buffer size ---
+    printf("Enter your name: ");
+    fgets(name, sizeof(name), stdin);
+
+    // fgets includes the trailing newline in the string — strip it
+    int len = strlen(name);
+    if (len > 0 && name[len - 1] == '\\n') {
+        name[len - 1] = '\\0';
+    }
+
+    printf("Hello, %s! (length: %zu)\\n", name, strlen(name));
+
+    // --- Reading integers safely ---
+    // scanf("%d") is fine for integers: stops at non-digit, no overflow for ints
+    int age;
+    printf("Enter your age: ");
+    if (scanf("%d", &age) == 1) {     // check return value — 1 means success
+        printf("Age: %d\\n", age);
+    } else {
+        printf("Invalid input.\\n");
+    }
+
     return 0;
 }`,
-                    output: "Enter full name: [John Doe]\nHello, John Doe"
+                    output: "Enter your name: [John Smith]\nHello, John Smith! (length: 10)\nEnter your age: [25]\nAge: 25",
+                    tip: "<code>fgets</code> always appends a null terminator, and it stops either at a newline or when the buffer is full — whichever comes first. The newline itself is included in the buffer when it fits, which is why the stripping step is needed. For robust command-line tools, <code>fgets</code> on <code>stdin</code> is the right tool for reading any line of text."
                 }
             ]
         },
         {
             id: "integer-types",
             title: "The Integer Type Family",
-            explanation: "The curriculum so far has used <code>int</code> for almost everything. But C has an entire family of integer types of different sizes, with both signed and unsigned variants. Knowing which type to reach for affects the range of values you can store, the memory your program uses, and — importantly — the behavior of arithmetic at the boundaries. This is one of those topics that seems like a detail until it causes a real bug.",
+            explanation: "So far the curriculum has used <code>int</code> for almost everything integer-shaped. But <code>int</code> is not a universal integer type — it is specifically a 32-bit signed integer on modern systems, which means it has a maximum value of about 2.1 billion and cannot represent negative values when declared <code>unsigned</code>. C's integer family covers a range of sizes and signedness variants because different problems genuinely need different types: a pixel colour component never needs to be larger than 255 or negative, so <code>uint8_t</code> is the right fit. A file offset on a 64-bit system can exceed 4 billion bytes, so <code>int64_t</code> is required. Using the right type is not pedantry — it prevents overflow bugs, communicates intent to the reader, and ensures correct behaviour when code runs on hardware you did not test on.",
             sections: [
                 {
                     title: "Size Variants: short, int, long, long long",
@@ -556,14 +754,15 @@ int main() {
         {
             id: "stdint",
             title: "Fixed-Width Integer Types: <stdint.h>",
-            explanation: "C's built-in integer types have a dirty secret: their sizes are not guaranteed. An <code>int</code> is 'at least 16 bits' — on your desktop that's 4 bytes, but on certain microcontrollers it's 2. If your code silently assumes 32-bit ints and gets compiled on a different target, you have a bug that only surfaces in production on a different machine. <code>&lt;stdint.h&gt;</code> (C99) solves this by giving you types with exact, guaranteed sizes on every platform.",
+            explanation: "The built-in integer types (<code>int</code>, <code>long</code>, etc.) have sizes that are platform-dependent. The C standard only guarantees minimums: <code>int</code> is at least 16 bits, <code>long</code> is at least 32 bits. On a 32-bit embedded system, <code>int</code> might be 16 bits. On a 64-bit Linux system, <code>long</code> is 8 bytes, but on 64-bit Windows it is 4 bytes. Code that silently assumes a particular size will produce wrong results, overflow, or corrupt data when compiled on a different target — often in production, not during development. <code>&lt;stdint.h&gt;</code> was introduced in C99 to solve this permanently: it provides types with exact, guaranteed bit-widths on every conforming platform. Whenever the exact size of an integer matters — network packets, binary file formats, hardware registers, cryptography — use these types, not the native ones.",
             sections: [
                 {
                     title: "The Problem With Native Types",
-                    content: "The C standard only mandates minimum sizes, not exact ones. This is a portability trap for anyone writing network protocols, binary file formats, hardware drivers, or cryptography — basically anyone doing real work.",
+                    content: "The C standard specifies minimum sizes, not exact sizes. This seems harmless until you write a program that works perfectly on your laptop and silently produces wrong answers on an embedded board, or a network protocol parser that works correctly on Linux but packs fields to the wrong size on Windows. The same source code, two different binaries, two different behaviours. The specific problem: if you pack a 4-byte integer into a binary packet on a 32-bit Linux system, and then read that packet on a platform where <code>int</code> is 2 bytes, you read garbage. Fixed-width types eliminate this entire class of bug.",
                     points: [
-                        "<code>int</code> on a 32-bit desktop: 4 bytes. <code>int</code> on some embedded targets: 2 bytes. Same code, completely different range and overflow behavior.",
-                        "The safest rule: use native types (<code>int</code>, <code>long</code>) only for things where the exact size genuinely doesn't matter, like loop counters. For everything else, use fixed-width types."
+                        "<code>int</code> on a 32-bit desktop: 4 bytes. On some MSP430 microcontrollers: 2 bytes. The same <code>int counter = 100000</code> stores correctly on one and silently overflows on the other.",
+                        "<code>long</code>: 8 bytes on 64-bit Linux/macOS, 4 bytes on 64-bit Windows. This inconsistency means <code>long</code> is nearly useless for portable code.",
+                        "The safe rule: use native types only where exact size truly does not matter — loop counters, local temporaries. For anything that crosses a boundary (files, networks, hardware, inter-process communication), use fixed-width types."
                     ]
                 },
                 {
@@ -637,7 +836,7 @@ int main() {
         {
             id: "random",
             title: "Random Numbers",
-            explanation: "Generating random numbers is one of the first things most programmers want to do — games, simulations, shuffling, sampling. C provides basic random number generation through <code>&lt;stdlib.h&gt;</code>. The mechanism is simple: a pseudo-random number generator (PRNG) that produces a long sequence of numbers that appear random but are completely deterministic given the same starting point (the seed).",
+            explanation: "Most useful programs need an element of unpredictability — games need different board layouts each run, simulations need varied starting conditions, test suites need random data to cover edge cases. C provides basic pseudo-random generation through <code>&lt;stdlib.h&gt;</code>. Understanding the term <em>pseudo-random</em> is important: the numbers look random and pass basic statistical tests, but they are produced by a completely deterministic mathematical formula. Given the same starting point (the <em>seed</em>), the sequence is identical every run. This determinism is sometimes a bug (a game that plays identically every time) and sometimes a feature (a reproducible test run). The two use cases require different seeding strategies.",
             sections: [
                 {
                     title: "rand() and srand()",
