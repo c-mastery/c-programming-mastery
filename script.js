@@ -1039,7 +1039,7 @@ async function runWithWandbox(code, stdin) {
             body: JSON.stringify({
                 code:     code,
                 compiler: "gcc-head",
-                options:  "-Wall -std=c17",
+                options:  "-x c -Wall -std=c17",
                 stdin:    stdin
             })
         });
