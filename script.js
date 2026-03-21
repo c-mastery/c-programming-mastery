@@ -54,7 +54,7 @@ const ModuleColors = {
 };
 
 // ===== Initialization =====
-document.addEventListener('DOMContentLoaded', () => {
+window.addEventListener('load', () => {
     loadProgress();
     renderNavigation();
     
@@ -1050,7 +1050,7 @@ function setupEventListeners() {
             document.getElementById('sidebar').classList.remove('open');
         }
     });
-    
+    document.getElementById('logoHomeBtn').addEventListener('click', showDashboard);
     // Dashboard module cards
     document.getElementById('modulesOverview').addEventListener('click', (e) => {
         const card = e.target.closest('.module-card');

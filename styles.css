@@ -154,6 +154,10 @@ a:hover { color: var(--accent-dim); }
 }
 
 .logo {
+    background: none;
+    border: none;
+    padding: 0;
+    cursor: pointer;
     display: flex;
     align-items: center;
     gap: 12px;
@@ -173,6 +177,10 @@ a:hover { color: var(--accent-dim); }
     font-weight: 700;
     white-space: nowrap;
     transition: opacity var(--transition-fast);
+}
+
+.logo:hover { 
+    opacity: 0.75; 
 }
 
 .sidebar.collapsed .logo-text {
