@@ -552,41 +552,41 @@ function updateLessonNav() {
                     </div>
                 </div>
                 <div class="completion-crypto-list">
-                    <div class="completion-crypto-item" data-address="bc1qxy2kgdygjrsqtzq2n0yrf2493p83kkfjhx0wlh">
+                    <div class="completion-crypto-item" data-address="bc1qr65zqs43tjxzruhhr8gknvxkvl5xphrmug4ts9">
                         <div class="crypto-icon btc">
                             <svg width="14" height="14" viewBox="0 0 24 24" fill="currentColor"><path d="M23.638 14.904c-1.602 6.43-8.113 10.34-14.542 8.736C2.67 22.05-1.244 15.525.362 9.105 1.962 2.67 8.475-1.243 14.9.358c6.43 1.605 10.342 8.115 8.738 14.546z"/></svg>
                         </div>
                         <div class="crypto-info">
                             <span class="crypto-name">Bitcoin <span class="crypto-ticker">BTC</span></span>
-                            <span class="crypto-address">bc1qxy2kgdygjrsqtzq2n0yrf2493p83kkfjhx0wlh</span>
+                            <span class="crypto-address">bc1qr65zqs43tjxzruhhr8gknvxkvl5xphrmug4ts9</span>
                         </div>
                         <button class="copy-btn completion-copy-btn" aria-label="Copy Bitcoin address">
                             <svg class="copy-icon" width="14" height="14" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2"><rect x="9" y="9" width="13" height="13" rx="2"/><path d="M5 15H4a2 2 0 0 1-2-2V4a2 2 0 0 1 2-2h9a2 2 0 0 1 2 2v1"/></svg>
                             <svg class="check-icon hidden" width="14" height="14" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2.5"><polyline points="20,6 9,17 4,12"/></svg>
                         </button>
                     </div>
-                    <div class="completion-crypto-item" data-address="0x71C7656EC7ab88b098defB751B7401B5f6d8976F">
+                    <div class="completion-crypto-item" data-address="0x06f2Cda18700D22FaC8e395Ef8141195eA9c4E5b">
                         <div class="crypto-icon eth">
                             <svg width="14" height="14" viewBox="0 0 24 24" fill="currentColor"><path d="M11.944 17.97L4.58 13.62 11.943 24l7.37-10.38-7.372 4.35h.003zM12.056 0L4.69 12.223l7.365 4.354 7.365-4.35L12.056 0z"/></svg>
                         </div>
                         <div class="crypto-info">
                             <span class="crypto-name">Ethereum <span class="crypto-ticker">ETH</span></span>
-                            <span class="crypto-address">0x71C7656EC7ab88b098defB751B7401B5f6d8976F</span>
+                            <span class="crypto-address">0x06f2Cda18700D22FaC8e395Ef8141195eA9c4E5b</span>
                         </div>
                         <button class="copy-btn completion-copy-btn" aria-label="Copy Ethereum address">
                             <svg class="copy-icon" width="14" height="14" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2"><rect x="9" y="9" width="13" height="13" rx="2"/><path d="M5 15H4a2 2 0 0 1-2-2V4a2 2 0 0 1 2-2h9a2 2 0 0 1 2 2v1"/></svg>
                             <svg class="check-icon hidden" width="14" height="14" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2.5"><polyline points="20,6 9,17 4,12"/></svg>
                         </button>
                     </div>
-                    <div class="completion-crypto-item" data-address="YOUR_XMR_ADDRESS_HERE">
-                        <div class="crypto-icon xmr">
+                    <div class="completion-crypto-item" data-address="7GfxY27W51i62hHcK8q2uEXb1nxdt2kWvSW9HPQPVfz7">
+                        <div class="crypto-icon solana">
                             <svg width="14" height="14" viewBox="0 0 24 24" fill="currentColor"><path d="M12 0C5.373 0 0 5.373 0 12s5.373 12 12 12 12-5.373 12-12S18.627 0 12 0zm0 4l3.5 3.5v3h-1.5V8.5L12 6.75 10 8.5v2H8.5v-3L12 4z"/></svg>
                         </div>
                         <div class="crypto-info">
-                            <span class="crypto-name">Monero <span class="crypto-ticker">XMR</span></span>
-                            <span class="crypto-address">YOUR_XMR_ADDRESS_HERE</span>
+                            <span class="crypto-name">Solana <span class="crypto-ticker">SOL</span></span>
+                            <span class="crypto-address">7GfxY27W51i62hHcK8q2uEXb1nxdt2kWvSW9HPQPVfz7</span>
                         </div>
-                        <button class="copy-btn completion-copy-btn" aria-label="Copy Monero address">
+                        <button class="copy-btn completion-copy-btn" aria-label="Copy Solana address">
                             <svg class="copy-icon" width="14" height="14" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2"><rect x="9" y="9" width="13" height="13" rx="2"/><path d="M5 15H4a2 2 0 0 1-2-2V4a2 2 0 0 1 2-2h9a2 2 0 0 1 2 2v1"/></svg>
                             <svg class="check-icon hidden" width="14" height="14" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2.5"><polyline points="20,6 9,17 4,12"/></svg>
                         </button>
