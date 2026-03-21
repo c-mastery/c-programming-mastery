@@ -45,25 +45,27 @@ int main() {
                     ],
                     code: `#include <stdio.h>
 
-typedef struct {
+// Plain struct — no typedef needed yet
+// (typedef is introduced later in this module)
+struct Student {
     char name[50];
     int age;
     float gpa;
-} Student;
+};
 
 int main() {
     // Old way: order-dependent, fragile
-    Student s1 = {"Bob", 21, 3.5};
+    struct Student s1 = {"Bob", 21, 3.5};
     
     // Designated initializers: clear and order-independent
-    Student s2 = {
+    struct Student s2 = {
         .name = "Alice",
         .gpa  = 3.8,   // Order doesn't matter
         .age  = 20
     };
     
     // Partial init: unspecified fields are zero
-    Student s3 = {.name = "Charlie"}; // age=0, gpa=0.0
+    struct Student s3 = {.name = "Charlie"}; // age=0, gpa=0.0
     
     printf("%s: age=%d, gpa=%.1f\\n", s1.name, s1.age, s1.gpa);
     printf("%s: age=%d, gpa=%.1f\\n", s2.name, s2.age, s2.gpa);
@@ -88,20 +90,20 @@ int main() {
                     code: `#include <stdio.h>
 #include <string.h>
 
-typedef struct {
+struct Point {
     int x;
     int y;
-} Point;
+};
 
-int pointsEqual(Point a, Point b) {
+int pointsEqual(struct Point a, struct Point b) {
     return a.x == b.x && a.y == b.y;
 }
 
 int main() {
-    Point p1 = {.x = 3, .y = 4};
+    struct Point p1 = {.x = 3, .y = 4};
     
     // Direct assignment: full copy
-    Point p2 = p1;
+    struct Point p2 = p1;
     
     printf("p1: (%d, %d)\\n", p1.x, p1.y);
     printf("p2: (%d, %d)\\n", p2.x, p2.y);
@@ -112,7 +114,7 @@ int main() {
     printf("p2.x = %d\\n", p2.x); // 99
     
     // Comparison: must compare field by field
-    Point p3 = {.x = 3, .y = 4};
+    struct Point p3 = {.x = 3, .y = 4};
     printf("p1 == p3: %d\\n", pointsEqual(p1, p3)); // 1 (true)
     // p1 == p3;  // ERROR: can't use == on structs
     
@@ -127,14 +129,14 @@ int main() {
                     code: `#include <stdio.h>
 #include <string.h>
 
-typedef struct {
+struct Student {
     char name[20];
     int age;
-} Student;
+};
 
 int main() {
-    Student s1;
-    Student *ptr = &s1;
+    struct Student s1;
+    struct Student *ptr = &s1;
     
     ptr->age = 20;
     strcpy(ptr->name, "Alice");
@@ -248,36 +250,36 @@ int main() {
 #include <stdlib.h>
 #include <string.h>
  
-// The struct has a header portion and a variable-length data tail
-typedef struct {
+// Plain struct tag — typedef for this is shown in the typedef lesson below
+struct Message {
     int  length;    // How many chars of data follow
     char data[];    // Flexible array member — no size specified
-                    // sizeof(Message) does NOT include data[]
-} Message;
+                    // sizeof(struct Message) does NOT include data[]
+};
  
-Message *create_message(const char *text) {
+struct Message *create_message(const char *text) {
     int len = strlen(text);
     // Allocate struct + enough extra bytes for the text + null terminator
-    Message *msg = malloc(sizeof(Message) + len + 1);
+    struct Message *msg = malloc(sizeof(struct Message) + len + 1);
     msg->length = len;
     memcpy(msg->data, text, len + 1);
     return msg;
 }
  
 int main() {
-    Message *m1 = create_message("Hello");
-    Message *m2 = create_message("A much longer message here");
+    struct Message *m1 = create_message("Hello");
+    struct Message *m2 = create_message("A much longer message here");
  
     printf("m1: length=%d, data='%s'\\n", m1->length, m1->data);
     printf("m2: length=%d, data='%s'\\n", m2->length, m2->data);
  
-    printf("sizeof(Message) = %zu (header only, no data)\\n", sizeof(Message));
+    printf("sizeof(struct Message) = %zu (header only)\\n", sizeof(struct Message));
  
     free(m1);
     free(m2);
     return 0;
 }`,
-                    output: "m1: length=5, data='Hello'\nm2: length=26, data='A much longer message here'\nsizeof(Message) = 4 (header only, no data)",
+                    output: "m1: length=5, data='Hello'\nm2: length=26, data='A much longer message here'\nsizeof(struct Message) = 4 (header only)",
                     tip: "The key advantage over a pointer member is the single allocation. A struct with <code>char *data</code> requires two mallocs and two frees. A struct with a flexible array member requires one malloc and one free — less overhead and better cache locality since the data is contiguous with the header. This pattern is used in the Linux kernel for variable-length network packets and inode structures."
                 }
             ]
@@ -343,51 +345,66 @@ int main() {
 #include <string.h>
  
 // The tag: which field in the union is currently valid
-typedef enum {
+// (plain enum — no typedef yet; that cleanup comes in the next lesson)
+enum ValueType {
     TYPE_INT,
     TYPE_FLOAT,
     TYPE_STRING
-} ValueType;
+};
  
 // The tagged union: struct holds the tag + the union
-typedef struct {
-    ValueType type;
+struct Value {
+    enum ValueType type;
     union {
         int    i;
         float  f;
         char   s[64];
     } as;
-} Value;
+};
  
 // Constructor helpers keep the tag and data in sync
-Value make_int(int i)          { return (Value){ .type = TYPE_INT,    .as.i = i }; }
-Value make_float(float f)      { return (Value){ .type = TYPE_FLOAT,  .as.f = f }; }
-Value make_string(const char*s){ Value v = {.type=TYPE_STRING}; strncpy(v.as.s,s,63); return v; }
+struct Value make_int(int i) {
+    struct Value v;
+    v.type = TYPE_INT;
+    v.as.i = i;
+    return v;
+}
+struct Value make_float(float f) {
+    struct Value v;
+    v.type = TYPE_FLOAT;
+    v.as.f = f;
+    return v;
+}
+struct Value make_string(const char *s) {
+    struct Value v;
+    v.type = TYPE_STRING;
+    strncpy(v.as.s, s, 63);
+    v.as.s[63] = '\\0';
+    return v;
+}
  
 // Safe printer: checks tag before accessing the union
-void print_value(const Value *v) {
+void print_value(const struct Value *v) {
     switch (v->type) {
         case TYPE_INT:    printf("int(%d)",    v->as.i); break;
         case TYPE_FLOAT:  printf("float(%g)",  v->as.f); break;
-        case TYPE_STRING: printf("str(\"%s\")", v->as.s); break;
+        case TYPE_STRING: printf("str(\\"%s\\")", v->as.s); break;
     }
     printf("\\n");
 }
  
 int main() {
-    Value vals[] = {
-        make_int(42),
-        make_float(3.14f),
-        make_string("hello")
-    };
+    struct Value vals[3];
+    vals[0] = make_int(42);
+    vals[1] = make_float(3.14f);
+    vals[2] = make_string("hello");
  
-    int n = sizeof(vals) / sizeof(vals[0]);
-    for (int i = 0; i < n; i++) {
+    for (int i = 0; i < 3; i++) {
         print_value(&vals[i]);
     }
  
     // Safe: check the tag before accessing
-    Value v = make_int(100);
+    struct Value v = make_int(100);
     if (v.type == TYPE_INT) {
         printf("It's an int: %d\\n", v.as.i);
     }
@@ -395,7 +412,7 @@ int main() {
     return 0;
 }`,
                     output: "int(42)\nfloat(3.14)\nstr(\"hello\")\nIt's an int: 100",
-                    tip: "This pattern is how you build heterogeneous lists in C — arrays or linked lists where each node can hold a value of any type. It is also the foundation of every parser, interpreter, and scripting language runtime written in C. If you ever build a JSON parser, an AST, or a configuration system in C, you will use tagged unions constantly."
+                    tip: "This pattern is how you build heterogeneous lists in C — arrays or linked lists where each node can hold a value of any type. It is also the foundation of every parser, interpreter, and scripting language runtime written in C. Note: after reading the <code>typedef</code> lesson below, you would write <code>ValueType</code> and <code>Value</code> directly instead of <code>enum ValueType</code> and <code>struct Value</code>. The logic is identical; typedef just removes the repetitive prefix."
                 }
             ]
         },
@@ -425,19 +442,46 @@ int main() {
                 },
                 {
                     title: "Typedef with Structs",
-                    content: "This is by far the most common use of <code>typedef</code> in real C code. Without it, every time you declare a struct variable you have to write the full <code>struct StructName varName</code> — the <code>struct</code> keyword is mandatory in plain C. With <code>typedef</code>, you give the struct type a single name and use that instead.",
+                    content: "This is by far the most common use of <code>typedef</code> in real C code. Throughout the Structures lesson above you wrote <code>struct Student s1</code>, <code>struct Point p1</code>, <code>struct Message *m</code> — the <code>struct</code> keyword is mandatory every time you name the type in plain C. With <code>typedef</code>, you give the struct a single alias and can drop the <code>struct</code> keyword entirely from that point on. The two forms are completely equivalent at the machine level.",
                     code: `#include <stdio.h>
 
+// Without typedef — what you saw in the Structures lesson:
+struct PointRaw {
+    int x;
+    int y;
+};
+
+// With typedef — gives the type a clean single-word alias
 typedef struct {
     int x;
     int y;
 } Point;
 
+// Self-referential struct: needs both tag AND typedef
+// because the alias isn't available inside its own body
+typedef struct Node {
+    int value;
+    struct Node *next;   // Must use 'struct Node' here — alias not ready yet
+} Node;
+
 int main() {
-    Point p1 = {.x = 10, .y = 5};
-    printf("Point coordinates: %d, %d\\n", p1.x, p1.y);
+    // Without typedef: must write 'struct' every time
+    struct PointRaw raw = {.x = 1, .y = 2};
+    printf("Raw:  struct PointRaw — (%d, %d)\\n", raw.x, raw.y);
+
+    // With typedef: clean, no 'struct' keyword needed
+    Point p = {.x = 10, .y = 5};
+    printf("Clean: Point — (%d, %d)\\n", p.x, p.y);
+
+    // Node is now usable without 'struct' prefix
+    Node n1 = {42, NULL};
+    Node n2 = {99, &n1};
+    printf("List: %d -> %d\\n", n2.value, n2.next->value);
+
     return 0;
-}`
+}`,
+                    output: "Raw:  struct PointRaw — (1, 2)\nClean: Point — (10, 5)\nList: 99 -> 42",
+                    tip: "The convention in nearly all real C codebases is to use <code>typedef struct { ... } TypeName;</code> for every struct — you will almost never see bare <code>struct Tag</code> declarations in production headers. The reason the Structures lesson used bare <code>struct</code> syntax was specifically so you would understand what <code>typedef</code> is eliminating. Now that you have both, always prefer the <code>typedef</code> form."
                 }
             ]
         },
@@ -825,13 +869,15 @@ int main() {
 #ifndef STUDENT_H
 #define STUDENT_H
 
-typedef struct {
+// Plain struct declaration — typedef comes in the next lesson,
+// but the include guard mechanism is the same regardless
+struct Student {
     char name[50];
     int age;
     float gpa;
-} Student;
+};
 
-void printStudent(Student s); // Prototype
+void printStudent(struct Student s); // Prototype
 
 #endif // STUDENT_H
 
@@ -839,7 +885,7 @@ void printStudent(Student s); // Prototype
 // === Alternative (simpler) ===
 // #pragma once
 //
-// typedef struct { ... } Student;`
+// struct Student { char name[50]; int age; float gpa; };`
                 }
             ]
         },

@@ -19,11 +19,19 @@ const ModuleIntermediate = {
 
 int main() {
     int age = 20;
-    char *status = (age >= 18) ? "Adult" : "Minor";
-    printf("Status: %s\\n", status);
+    // Pass the ternary result directly — no pointer variable needed at this stage
+    printf("Status: %s\\n", (age >= 18) ? "Adult" : "Minor");
+
+    // Ternary in an integer assignment — the most common use
+    int discount = (age >= 65) ? 20 : 0;
+    printf("Senior discount: %d%%\\n", discount);
+
+    // Nesting is legal but quickly unreadable — use if-else instead
+    int score = 75;
+    printf("Grade: %s\\n", (score >= 90) ? "A" : (score >= 70) ? "B" : "C");
     return 0;
 }`,
-                    output: "Status: Adult"
+                    output: "Status: Adult\\nSenior discount: 0%\\nGrade: B"
                 },
                 {
                     title: "Bitwise Operators (Introduction)",
@@ -190,17 +198,17 @@ int main() {
     printf("0/0   = %f\\n",  nan);   // nan
     printf("nan==nan: %s\\n", nan == nan ? "true" : "false"); // false!
  
-    // Peek at the raw bits of 1.0f using a union (type punning)
-    union { float f; uint32_t u; } pun = { .f = 1.0f };
-    printf("1.0f bits: 0x%08X\\n", pun.u); // 0x3F800000
-    // sign=0, exponent=127 (0x7F), mantissa=0 → value = 1.0 × 2^0 = 1.0
+    // The raw bit pattern of 1.0f is 0x3F800000:
+    // sign=0, exponent bits=01111111 (127), mantissa=0
+    // → value = 1.0 × 2^(127-127) = 1.0 × 1 = 1.0
+    // (Inspecting raw float bits with a union is covered in the Advanced module)
  
     // Precision limit: doubles have ~15-16 significant decimal digits
     printf("%.20f\\n", 0.1); // Shows the approximation
  
     return 0;
 }`,
-                    output: "0.1 + 0.2 = 0.30000000000000004441\n== 0.3?   no\napprox ==? yes\n1/0   = inf\n-1/0  = -inf\n0/0   = nan\nnan==nan: false\n1.0f bits: 0x3F800000\n0.10000000000000000555",
+                    output: "0.1 + 0.2 = 0.30000000000000004441\n== 0.3?   no\napprox ==? yes\n1/0   = inf\n-1/0  = -inf\n0/0   = nan\nnan==nan: false\n0.10000000000000000555",
                     tip: "Use <code>double</code> over <code>float</code> for general-purpose decimal arithmetic — it has 15-16 significant digits vs 6-7 for float. Neither is suitable for money or financial calculations where exact decimal representation matters. For those, use integer arithmetic scaled by a power of 10 (store dollars as cents) or a dedicated decimal library."
                 }
             ]
@@ -348,33 +356,39 @@ int main() {
                         "<strong>Initialization</strong>: Thread-local variables are initialized once per thread, not once per program. Each new thread starts with the variable at its declared initial value.",
                         "<strong>Scope restriction</strong>: <code>_Thread_local</code> can only be applied to variables with static storage duration — globals and <code>static</code> locals. You can't apply it to regular local variables."
                     ],
-                    code: `#include <stdio.h>
-#include <threads.h>
+                    code: `// Concept illustration (full threading with thrd_create/thrd_join
+// is covered in the Expert module — <threads.h>)
+//
+// Each thread has its OWN independent copy of a _Thread_local variable.
+// The real-world example you use every day:
+//
+//   extern _Thread_local int errno;   // declared in <errno.h>
+//
+// Thread A calls fopen("missing.txt", "r") → errno set to ENOENT in Thread A
+// Thread B calls malloc() at the same instant → errno set to ENOMEM in Thread B
+// Thread A reads errno — it sees ENOENT, not ENOMEM, because each thread
+// has its own copy.
 
-// Each thread has its OWN copy of this variable
-_Thread_local int thread_id = 0;
+#include <stdio.h>
 
-int thread_func(void *arg) {
-    // Set our thread's copy - doesn't affect other threads
-    thread_id = *(int*)arg;
-    printf("Thread %d: my id = %d\\n", thread_id, thread_id);
-    return 0;
+// A module-level call counter: each thread counts its own calls
+// independently without needing a mutex
+_Thread_local int call_count = 0;
+
+void do_work(void) {
+    call_count++;    // Only increments THIS thread's counter
+    printf("This thread has called do_work %d time(s)\\n", call_count);
 }
 
-int main() {
-    thrd_t t1, t2;
-    int id1 = 1, id2 = 2;
-    
-    thrd_create(&t1, thread_func, &id1);
-    thrd_create(&t2, thread_func, &id2);
-    
-    thrd_join(t1, NULL);
-    thrd_join(t2, NULL);
-    
-    printf("Main: thread_id = %d\\n", thread_id); // Still 0 in main thread
+int main(void) {
+    // In single-threaded code, _Thread_local behaves like static
+    do_work();   // 1
+    do_work();   // 2
+    do_work();   // 3
     return 0;
 }`,
-                    output: "Thread 1: my id = 1\nThread 2: my id = 2\nMain: thread_id = 0"
+                    output: "This thread has called do_work 1 time(s)\nThis thread has called do_work 2 time(s)\nThis thread has called do_work 3 time(s)",
+                    tip: "You won't need <code>_Thread_local</code> until you write multithreaded programs. It is introduced here as a storage class so the list is complete. Revisit it once you reach the Expert module on <code>&lt;threads.h&gt;</code>, where you'll create actual threads and observe the independence of thread-local copies in action."
                 }
             ]
         },
@@ -406,36 +420,50 @@ while (!done) {   // Re-reads from memory every iteration — correct
                     content: "The situations where <code>volatile</code> is required are specific and important. Using it everywhere 'just to be safe' is wrong — it disables optimizations for no reason. Use it only in these four scenarios.",
                     points: [
                         "<strong>Memory-mapped hardware registers:</strong> In embedded programming, hardware devices are controlled by writing to specific memory addresses. Those addresses can change state independently of your program. Every read and write must go to actual hardware, not a cached copy.",
-                        "<strong>Signal handlers:</strong> A variable shared between <code>main()</code> and a signal handler must be <code>volatile sig_atomic_t</code>. The signal can fire between any two instructions, and the handler modifies the variable — <code>volatile</code> ensures the change is visible.",
-                        "<strong>setjmp / longjmp:</strong> Local variables modified after a <code>setjmp</code> call must be <code>volatile</code> or they may revert to their pre-setjmp values after a <code>longjmp</code>.",
+                        "<strong>Signal handlers:</strong> A variable shared between <code>main()</code> and a signal handler must be <code>volatile sig_atomic_t</code>. The signal can fire between any two instructions, and the handler modifies the variable — <code>volatile</code> ensures the change is visible. (Signal handling is covered in the Expert module.)",
+                        "<strong>setjmp / longjmp:</strong> Local variables modified after a <code>setjmp</code> call must be <code>volatile</code> or they may revert to their pre-setjmp values after a <code>longjmp</code>. (Covered in the Expert module.)",
                         "<strong>Polling flags across threads:</strong> Technically, <code>_Atomic</code> (C11) is the correct tool for this. But in older code, <code>volatile</code> was used to prevent the compiler from caching a flag that another thread sets."
                     ],
                     code: `#include <stdio.h>
-#include <signal.h>
- 
-// Correct type for a flag shared with a signal handler
-volatile sig_atomic_t running = 1;
- 
-void handle_sigint(int sig) {
-    (void)sig;
-    running = 0;  // Signal handler sets the flag
-}
- 
-int main() {
-    signal(SIGINT, handle_sigint);
- 
-    printf("Running. Press Ctrl+C to stop.\\n");
- 
-    // Without volatile, the compiler might cache running=1
-    // and never re-check it, looping forever even after Ctrl+C
-    while (running) {
-        // doing work...
+
+// --- Embedded / hardware-register example ---
+// A hardware STATUS register at a fixed memory address.
+// The hardware device updates it independently of the CPU.
+#define STATUS_REG_ADDR  0x40001000
+#define STATUS_READY     0x01
+
+// Without volatile, the compiler might read the register once,
+// cache it in a register, and loop forever on the stale value.
+// With volatile, every loop iteration re-reads from the actual address.
+void wait_for_device(void) {
+    volatile unsigned int *status =
+        (volatile unsigned int *)STATUS_REG_ADDR;
+
+    // Re-reads from hardware on every iteration — correct
+    while ((*status & STATUS_READY) == 0) {
+        // spin until device signals ready
     }
- 
-    printf("Stopped cleanly.\\n");
+}
+
+// --- The same pattern with a plain variable to make it runnable ---
+// Simulates a flag that is "set externally" (by hardware, an OS callback,
+// or a signal handler — mechanisms covered in later modules).
+int main(void) {
+    volatile int sensor_updated = 0;
+
+    // In a real program something outside this loop would set sensor_updated.
+    // With volatile the compiler cannot hoist the read out of the loop.
+    // Here we just show the structure:
+    int iterations = 0;
+    while (!sensor_updated) {
+        iterations++;
+        if (iterations == 5) sensor_updated = 1; // simulate external write
+    }
+    printf("Sensor update detected after %d checks.\\n", iterations);
     return 0;
 }`,
-                    output: "Running. Press Ctrl+C to stop.\n[Ctrl+C pressed]\nStopped cleanly."
+                    output: "Sensor update detected after 5 checks.",
+                    tip: "The canonical real-world use you will encounter is <code>volatile sig_atomic_t flag = 0;</code> — a flag that <code>main()</code> polls and a signal handler (Ctrl+C, SIGTERM) sets to 1. You'll write this exact pattern in the Expert module on signal handling. Until then, remember the rule: if a variable can change behind the compiler's back (hardware, OS, another thread), declare it <code>volatile</code>."
                 },
                 {
                     title: "What volatile Does NOT Do",
@@ -496,42 +524,52 @@ int main() {
                     content: "<code>assert()</code> from <code>&lt;assert.h&gt;</code> is a debugging macro that checks whether a condition is true. If the condition is true, nothing happens and execution continues normally. If the condition is false, the program immediately aborts and prints a message telling you exactly which assertion failed, in which file, and on which line. It's designed to catch programming errors — places where your assumptions about the program's state turned out to be wrong.",
                     points: [
                         "<strong>Syntax</strong>: <code>assert(condition)</code>. If <code>condition</code> evaluates to zero (false), the program aborts with an error message.",
-                        "<strong>What it prints</strong>: Something like <code>Assertion failed: ptr != NULL, file main.c, line 15</code> — the exact condition, file, and line number. This is invaluable for debugging.",
+                        "<strong>What it prints</strong>: Something like <code>Assertion failed: x > 0, file main.c, line 8</code> — the exact condition, file, and line number. This is invaluable for debugging.",
                         "<strong>Disabling assertions</strong>: In production builds, you can disable all assertions at once by defining <code>NDEBUG</code> before including <code>&lt;assert.h&gt;</code>. Every <code>assert()</code> call then compiles to nothing — zero overhead. This is the intended workflow: use assertions liberally during development, disable them for release.",
-                        "<strong>What to assert</strong>: Preconditions (things that must be true when a function is called), postconditions (things that must be true when it returns), and invariants (things that must always be true at specific points). Classic examples: pointer is not NULL before dereferencing, array index is within bounds, a value is in a valid range."
+                        "<strong>What to assert</strong>: Preconditions (things that must be true when a function is called), postconditions (things that must be true when it returns), and invariants (things that must always be true at specific points). Classic examples: a divisor is non-zero, an index is within a valid range, a value is within an expected bound."
                     ],
                     code: `#include <stdio.h>
 #include <assert.h>
 
-// Divides a by b. b must NOT be zero.
+// Divides a by b. b must NOT be zero — assert enforces this.
 double safeDivide(double a, double b) {
-    assert(b != 0.0); // Crashes with helpful message if b is zero
+    assert(b != 0.0); // Aborts with a clear message if b is zero
     return a / b;
 }
 
-// Gets element at index. Index must be valid.
-int getElement(int *arr, int size, int index) {
-    assert(arr != NULL);          // Pointer must be valid
-    assert(index >= 0);           // Index must be non-negative
-    assert(index < size);         // Index must be within bounds
+// Clamps a value to [lo, hi]. Caller must pass a valid range.
+int clamp(int val, int lo, int hi) {
+    assert(lo <= hi); // Precondition: range must make sense
+    if (val < lo) return lo;
+    if (val > hi) return hi;
+    return val;
+}
+
+// Returns the element at index in a fixed-size array.
+// Index must be 0..4 — assert catches out-of-range bugs.
+int getElement(int arr[5], int index) {
+    assert(index >= 0);   // Non-negative
+    assert(index < 5);    // Within bounds
     return arr[index];
 }
 
 int main() {
-    double result = safeDivide(10.0, 2.0);
-    printf("10 / 2 = %.1f\\n", result); // 5.0
-    
-    int data[] = {10, 20, 30, 40, 50};
-    printf("Element 2: %d\\n", getElement(data, 5, 2)); // 30
-    
-    // This would crash with a clear assertion failure message:
-    // safeDivide(10.0, 0.0);
-    // getElement(data, 5, 10); // Index 10 out of bounds
-    
+    printf("10 / 2 = %.1f\\n", safeDivide(10.0, 2.0)); // 5.0
+    printf("clamp(15, 0, 10) = %d\\n", clamp(15, 0, 10)); // 10
+    printf("clamp(-3, 0, 10) = %d\\n", clamp(-3, 0, 10)); // 0
+
+    int data[5] = {10, 20, 30, 40, 50};
+    printf("Element 2: %d\\n", getElement(data, 2)); // 30
+
+    // These would abort with a clear assertion failure message:
+    // safeDivide(10.0, 0.0);    — "b != 0.0" fails
+    // clamp(5, 10, 0);          — "lo <= hi" fails
+    // getElement(data, 7);      — "index < 5" fails
+
     return 0;
 }`,
-                    output: "10 / 2 = 5.0\nElement 2: 30",
-                    tip: "Use <code>assert()</code> freely during development. If a function receives a NULL pointer it was never supposed to receive, that's a programming bug — not a runtime error the function should handle gracefully. Assert it. The crash and the message will immediately point you to the problem. This is far better than silently proceeding with bad data and crashing somewhere unrelated 200 lines later."
+                    output: "10 / 2 = 5.0\nclamp(15, 0, 10) = 10\nclamp(-3, 0, 10) = 0\nElement 2: 30",
+                    tip: "Use <code>assert()</code> freely during development to document and enforce your assumptions. The crash it produces — with the exact failed condition, file name, and line number — points you straight to the bug. In release builds, define <code>NDEBUG</code> to compile all assertions away to zero overhead. Note: once you learn pointers in the next module, you'll add <code>assert(ptr != NULL)</code> as another extremely common precondition check."
                 }
             ]
         },
@@ -783,42 +821,38 @@ int main() {
                 },
                 {
                     title: "Compound Literals",
-                    content: "A compound literal creates a nameless, temporary object of a specified type. The syntax looks like a cast followed by a brace-enclosed initializer: <code>(Type){initializer list}</code>. The result is an lvalue — you can take its address. Compound literals are useful for passing struct or array arguments directly without declaring a throw-away named variable.",
+                    content: "A compound literal creates a nameless, temporary object of a specified type. The syntax looks like a cast followed by a brace-enclosed initializer: <code>(Type){initializer list}</code>. The result is an lvalue — you can take its address. Compound literals work for any type, but at this point in the curriculum the most immediately useful form is for arrays: pass an array directly to a function without declaring a named variable first.",
                     code: `#include <stdio.h>
  
-typedef struct { int x; int y; } Point;
- 
-// Function expecting a Point by value
-void print_point(Point p) {
-    printf("(%d, %d)\\n", p.x, p.y);
-}
- 
-// Function expecting an int array and size
+// A function that receives an int array and its length
 void print_array(int *arr, int n) {
     for (int i = 0; i < n; i++) printf("%d ", arr[i]);
     printf("\\n");
 }
+
+// A function that sums three specific values
+int sum3(int a, int b, int c) { return a + b + c; }
  
 int main() {
-    // Without compound literal: need a named variable
-    Point tmp = {3, 4};
-    print_point(tmp);
- 
-    // With compound literal: pass directly, no named variable needed
-    print_point((Point){7, 8});
- 
-    // Compound literal for an array
-    print_array((int[]){10, 20, 30, 40}, 4);
- 
-    // Pointer to a compound literal — the literal has the
-    // lifetime of the enclosing block (local scope)
-    Point *p = &(Point){5, 6};
-    printf("Via pointer: (%d, %d)\\n", p->x, p->y);
- 
+    // Without a compound literal: need a named throwaway variable
+    int tmp[] = {10, 20, 30, 40};
+    print_array(tmp, 4);
+
+    // With a compound literal: pass directly, no named variable needed
+    print_array((int[]){1, 2, 3, 4, 5}, 5);
+
+    // Compound literal as a sub-expression
+    // (int[]){5, 10, 15}[1]  →  element at index 1  →  10
+    printf("Middle element: %d\\n", ((int[]){5, 10, 15})[1]);
+
+    // Lifetime: a compound literal lives for the enclosing block
+    int *p = (int[]){100, 200, 300};
+    printf("Via pointer: %d %d %d\\n", p[0], p[1], p[2]);
+
     return 0;
 }`,
-                    output: "(3, 4)\n(7, 8)\n10 20 30 40 \nVia pointer: (5, 6)",
-                    tip: "Compound literals are especially useful in test code and in functions that require a struct argument you only need once. Instead of declaring a named variable just to fill it and pass it, the compound literal keeps the data right at the call site. They also combine well with designated initializers: <code>print_point((Point){.y = 10, .x = 5});</code>"
+                    output: "10 20 30 40 \n1 2 3 4 5 \nMiddle element: 10\nVia pointer: 100 200 300",
+                    tip: "Compound literals also work with structs — for example <code>(Point){3, 4}</code> — but structs and <code>typedef</code> are introduced in the next module (Advanced). Come back to this feature once you've learned those: compound literals combined with designated initializers like <code>(Point){.x = 3, .y = 4}</code> are the cleanest way to pass temporary struct values to functions."
                 }
             ]
         },
@@ -965,48 +999,39 @@ Local array size: 50`,
                 },
                 {
                     title: "nullptr and nullptr_t (C23)",
-                    content: "Before C23, C had no typed null pointer constant. <code>NULL</code> was typically defined as <code>((void*)0)</code> or just <code>0</code>, which is an integer — causing subtle problems in overloaded contexts and <code>_Generic</code> expressions. C23 introduces <code>nullptr</code>, a keyword with its own type <code>nullptr_t</code>, which converts to any pointer type but is distinct from integer zero.",
+                    content: "Before C23, C had no typed null pointer constant. <code>NULL</code> was typically defined as <code>((void*)0)</code> or just <code>0</code>, which is an integer — causing subtle problems in overloaded contexts and <code>_Generic</code> expressions. C23 introduces <code>nullptr</code>, a keyword with its own type <code>nullptr_t</code>, which converts to any pointer type but is distinct from integer zero. Pointers are covered in depth in the next module (Low-Level Core); this section explains <em>what</em> <code>nullptr</code> is so you recognise it in C23 code.",
                     code: `#include <stdio.h>
 #include <stddef.h>   // nullptr_t
 
-// nullptr converts to any pointer type
-int* find_value(int *arr, int size, int target) {
-    for (int i = 0; i < size; i++) {
-        if (arr[i] == target) return &arr[i];
-    }
-    return nullptr;   // C23: typed, unambiguous null pointer
-}
-
-// nullptr_t is a distinct type — useful in _Generic
-#define describe_ptr(P) _Generic((P),        \\
-    nullptr_t: "null pointer constant",       \\
-    int*:      "int pointer",                 \\
-    char*:     "char pointer",                \\
-    default:   "other pointer"               \\
-)
+// nullptr is the new C23 null pointer constant.
+// It replaces NULL everywhere a null pointer is needed.
+// Its type is nullptr_t — distinct from int, unlike the old NULL macro.
 
 int main(void) {
-    int data[] = {10, 20, 30, 40, 50};
+    // Old C: NULL is typically ((void*)0) — integer 0 in disguise
+    int *old_style = NULL;
 
-    int *found = find_value(data, 5, 30);
-    if (found != nullptr) {
-        printf("Found: %d\\n", *found);
-    }
+    // C23: nullptr has its own type and is unambiguously a pointer constant
+    int *new_style = nullptr;
 
-    int *missing = find_value(data, 5, 99);
-    if (missing == nullptr) {
-        printf("Not found\\n");
-    }
+    // Both compare equal to 0 and to each other — same meaning, cleaner type
+    printf("old == nullptr: %d\\n", old_style == nullptr);  // 1
+    printf("new == NULL:    %d\\n", new_style == NULL);      // 1
 
-    // _Generic can now distinguish nullptr from int*
-    printf("nullptr is: %s\\n", describe_ptr(nullptr));
-    printf("int* is:    %s\\n", describe_ptr((int*)nullptr));
+    // The key advantage: _Generic can distinguish nullptr_t from int*
+    // (Full pointer use — dereferencing, address-of, pointer arithmetic —
+    //  is all in the Low-Level Core module.)
+#define what_is(P) _Generic((P),             \\
+    nullptr_t: "nullptr_t (null constant)",  \\
+    int*:      "int pointer",                \\
+    default:   "something else"              \\
+)
+    printf("nullptr is: %s\\n", what_is(nullptr));
+    printf("int* is:    %s\\n", what_is((int*)nullptr));
     return 0;
 }`,
-                    output: `Found: 30
-Not found
-nullptr is: null pointer constant
-int* is:    int pointer`
+                    output: "old == nullptr: 1\nnew == NULL:    1\nnullptr is: nullptr_t (null constant)\nint* is:    int pointer",
+                    tip: "In new C23 code, write <code>nullptr</code> instead of <code>NULL</code> or <code>0</code> whenever you mean a null pointer. The meaning is identical but the intent is explicit and the type is unambiguous. You will see <code>nullptr</code> used constantly in the Low-Level Core module when checking whether a pointer is valid before using it."
                 },
                 {
                     title: "Binary Literals and Digit Separators (C23)",
@@ -1088,9 +1113,12 @@ nibble (4-bit): 10
                 },
                 {
                     title: "Enhanced Enumerations (C23)",
-                    content: "C23 allows enumeration types to have an explicit underlying type, and allows enumeration constants outside the range of <code>signed int</code>. Before C23, all enum constants had to fit in a <code>signed int</code>, which was a crippling limitation for bit masks and large constant sets.",
+                    content: "An <strong>enumeration</strong> (<code>enum</code>) is a way of assigning human-readable names to a set of integer constants. For example, <code>enum Color { RED, GREEN, BLUE };</code> makes <code>RED</code> equal to 0, <code>GREEN</code> equal to 1, and <code>BLUE</code> equal to 2. Enums are covered in full in the Advanced module — this section focuses purely on what C23 adds to them. C23 allows enumerations to have an explicit underlying integer type, and allows enumeration constants whose value exceeds the range of <code>signed int</code>. Before C23, all enum constants had to fit in a <code>signed int</code>, which was a crippling limitation for bit masks and large constant sets.",
                     code: `#include <stdio.h>
 #include <stdint.h>
+
+// Quick recap: a plain enum assigns integer names starting at 0
+enum Day { MON, TUE, WED };   // MON=0, TUE=1, WED=2
 
 // C23: explicit underlying type for enum
 // Underlying type is uint32_t — can hold values up to 4 billion
@@ -1111,6 +1139,11 @@ enum BigFlags : unsigned long long {
 };
 
 int main(void) {
+    // Plain enum still works exactly as before
+    enum Day today = WED;
+    printf("Day value: %d\\n", today);  // 2
+
+    // C23 typed enum: bit-flag permissions
     enum Permission user_perms = PERM_READ | PERM_WRITE;
 
     if (user_perms & PERM_READ)  printf("Can read\\n");
@@ -1122,12 +1155,14 @@ int main(void) {
     printf("FLAG_HIGH   = 0x%llX\\n", (unsigned long long)FLAG_HIGH);
     return 0;
 }`,
-                    output: `Can read
+                    output: `Day value: 2
+Can read
 Can write
 Cannot execute
 PERM_ADMIN  = 0x80000000
 PERM_ALL    = 0xFFFFFFFF
-FLAG_HIGH   = 0x8000000000000000`
+FLAG_HIGH   = 0x8000000000000000`,
+                    tip: "The C23 typed enum feature is most valuable for permission/flag systems where you need bit values beyond <code>INT_MAX</code>. For everyday enums that fit in a normal integer — days of the week, state machine states, error codes — the plain C89 enum is perfectly fine. The full enum syntax including <code>typedef enum</code> and using enums inside structs is in the Advanced module."
                 }
             ]
         }
