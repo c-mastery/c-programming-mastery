@@ -489,6 +489,79 @@ a:hover { color: var(--accent-dim); }
     gap: 8px;
 }
 
+/* ===== GitHub Link ===== */
+.github-link {
+    display: flex;
+    align-items: center;
+    gap: 6px;
+    padding: 7px 12px;
+    border-radius: var(--radius-sm);
+    color: var(--text-secondary);
+    text-decoration: none;
+    font-size: 0.8rem;
+    font-weight: 500;
+    border: 1px solid var(--border);
+    background: var(--bg-tertiary);
+    transition: all var(--transition-fast);
+    white-space: nowrap;
+}
+
+.github-link:hover {
+    color: var(--text-primary);
+    border-color: var(--border-light);
+    background: var(--bg-hover);
+}
+
+.github-label {
+    display: inline;
+}
+
+/* ===== Donate Button ===== */
+.donate-btn {
+    display: flex;
+    align-items: center;
+    gap: 6px;
+    padding: 7px 14px;
+    border-radius: var(--radius-sm);
+    color: #fff;
+    text-decoration: none;
+    font-size: 0.8rem;
+    font-weight: 600;
+    background: linear-gradient(135deg, #e05d9e, #f97316);
+    border: none;
+    cursor: pointer;
+    transition: all var(--transition-fast);
+    white-space: nowrap;
+    box-shadow: 0 2px 8px rgba(224, 93, 158, 0.3);
+}
+
+.donate-btn:hover {
+    opacity: 0.9;
+    transform: translateY(-1px);
+    box-shadow: 0 4px 14px rgba(224, 93, 158, 0.45);
+}
+
+.donate-btn svg {
+    animation: heartbeat 1.4s ease infinite;
+}
+
+@keyframes heartbeat {
+    0%, 100% { transform: scale(1); }
+    14%       { transform: scale(1.25); }
+    28%       { transform: scale(1); }
+    42%       { transform: scale(1.15); }
+    56%       { transform: scale(1); }
+}
+
+/* Hide GitHub label on small screens */
+@media (max-width: 640px) {
+    .github-label { display: none; }
+    .github-link  { padding: 7px 10px; }
+    .donate-btn   { padding: 7px 10px; }
+    .donate-btn span { display: none; }
+}
+
+/* ===== Theme Toggle ===== */
 .theme-toggle {
     background: none;
     border: none;
