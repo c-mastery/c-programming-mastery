@@ -11,6 +11,7 @@ const App = {
         completedLessons: [],
         quizScores: {},
         examScores: {},
+        attemptedProblems: [],
         streak: 0,
         lastVisit: null
     }
@@ -84,6 +85,10 @@ function loadProgress() {
     const saved = localStorage.getItem('cMasteryProgress');
     if (saved) {
         App.progress = JSON.parse(saved);
+        // Backfill keys added after initial release so old saves don't break
+        if (!App.progress.attemptedProblems) App.progress.attemptedProblems = [];
+        if (!App.progress.quizScores)        App.progress.quizScores = {};
+        if (!App.progress.examScores)        App.progress.examScores = {};
     }
 }
 
@@ -160,7 +165,10 @@ function renderNavigation() {
         const completedCount = lessons.filter(l => 
             App.progress.completedLessons.includes(`${moduleId}-${l.id}`)
         ).length;
-        const progress = lessons.length > 0 ? Math.round((completedCount / lessons.length) * 100) : 0;
+
+        const quizScore        = App.progress.quizScores[moduleId];
+        const examScore        = App.progress.examScores[moduleId];
+        const practiceAttempted = App.progress.attemptedProblems.some(k => k.startsWith(`${moduleId}-practice-`));
         
         html += `
             <div class="nav-module">
@@ -189,18 +197,21 @@ function renderNavigation() {
                         <div class="lesson-link" data-module="${moduleId}" data-action="practice">
                             <span class="lesson-check"></span>
                             <span class="lesson-name">Practice</span>
+                            ${practiceAttempted ? '<span class="sidebar-badge attempted">Tried</span>' : ''}
                         </div>
                     </li>
                     <li class="lesson-item">
                         <div class="lesson-link" data-module="${moduleId}" data-action="quiz">
                             <span class="lesson-check"></span>
                             <span class="lesson-name">Quiz</span>
+                            ${quizScore !== undefined ? `<span class="sidebar-badge ${quizScore >= 70 ? 'passed' : 'failed'}">${quizScore}%</span>` : ''}
                         </div>
                     </li>
                     <li class="lesson-item">
                         <div class="lesson-link" data-module="${moduleId}" data-action="exam">
                             <span class="lesson-check"></span>
                             <span class="lesson-name">Exam</span>
+                            ${examScore !== undefined ? `<span class="sidebar-badge ${examScore >= 80 ? 'passed' : 'failed'}">${examScore}%</span>` : ''}
                         </div>
                     </li>
                 </ul>
@@ -209,6 +220,39 @@ function renderNavigation() {
     });
     
     navModules.innerHTML = html;
+    updateSidebarActive();
+}
+
+// ===== Active Sidebar Highlight =====
+function updateSidebarActive() {
+    document.querySelectorAll('.lesson-link.active-lesson').forEach(el => el.classList.remove('active-lesson'));
+
+    if (!App.currentModule) return;
+
+    let selector = null;
+    if (App.currentView === 'lesson' && App.currentLesson) {
+        selector = `.lesson-link[data-module="${App.currentModule}"][data-lesson="${App.currentLesson}"]`;
+    } else if (App.currentView === 'practice') {
+        selector = `.lesson-link[data-module="${App.currentModule}"][data-action="practice"]`;
+    } else if (App.currentView === 'quiz') {
+        selector = `.lesson-link[data-module="${App.currentModule}"][data-action="quiz"]`;
+    } else if (App.currentView === 'exam') {
+        selector = `.lesson-link[data-module="${App.currentModule}"][data-action="exam"]`;
+    }
+
+    if (selector) {
+        const link = document.querySelector(selector);
+        if (link) {
+            link.classList.add('active-lesson');
+            // Auto-expand the parent module panel so the active item is visible
+            const header = link.closest('.nav-module')?.querySelector('.module-header');
+            const lessonsList = link.closest('.module-lessons');
+            if (header && lessonsList) {
+                header.classList.add('expanded');
+                lessonsList.classList.add('show');
+            }
+        }
+    }
 }
 
 // ===== Dashboard Rendering =====
@@ -323,6 +367,7 @@ function renderLesson(moduleId, lessonId) {
     updateLessonNav();
     
     showView('lesson');
+    updateSidebarActive();
 }
 
 function renderLessonContent(lesson) {
@@ -423,7 +468,11 @@ function highlightSyntax(code) {
     result = escapeHtml(result);
 
     // 3. Highlight Keywords
-    const keywords = ['int', 'char', 'float', 'double', 'void', 'long', 'short', 'unsigned', 'signed', 'const', 'static', 'extern', 'register', 'auto', 'volatile', 'return', 'if', 'else', 'switch', 'case', 'default', 'break', 'continue', 'for', 'while', 'do', 'goto', 'sizeof', 'typedef', 'struct', 'union', 'enum', 'include', 'define', 'ifdef', 'ifndef', 'endif', 'elif', 'pragma', 'NULL', 'true', 'false'];
+    const keywords = ['int', 'char', 'float', 'double', 'void', 'long', 'short', 'unsigned', 'signed', 'const', 'static', 'extern', 'register', 'auto', 'volatile', 'return', 'if', 'else', 'switch', 'case', 'default', 'break', 'continue', 'for', 'while', 'do', 'goto', 'sizeof', 'typedef', 'struct', 'union', 'enum', 'include', 'define', 'ifdef', 'ifndef', 'endif', 'elif', 'pragma', 'NULL', 'true', 'false',
+        // C11
+        '_Generic', '_Static_assert', '_Noreturn', '_Alignas', '_Alignof', '_Thread_local', '_Atomic',
+        // C23
+        'constexpr', 'nullptr', 'typeof', 'typeof_unqual', 'alignas', 'alignof', 'static_assert', 'thread_local', 'noreturn', '_BitInt', 'nodiscard', 'maybe_unused', 'deprecated', 'fallthrough'];
     
     keywords.forEach(kw => {
         const regex = new RegExp(`\\b${kw}\\b`, 'g');
@@ -431,7 +480,7 @@ function highlightSyntax(code) {
     });
 
     // 4. Highlight Types
-    const types = ['FILE', 'size_t', 'ptrdiff_t', 'uint8_t', 'uint16_t', 'uint32_t', 'uint64_t', 'int8_t', 'int16_t', 'int32_t', 'int64_t'];
+    const types = ['FILE', 'size_t', 'ptrdiff_t', 'uint8_t', 'uint16_t', 'uint32_t', 'uint64_t', 'int8_t', 'int16_t', 'int32_t', 'int64_t', 'uintptr_t', 'intptr_t', 'wchar_t', 'va_list'];
     types.forEach(t => {
         const regex = new RegExp(`\\b${t}\\b`, 'g');
         result = result.replace(regex, `<span class="typ">${t}</span>`);
@@ -440,8 +489,14 @@ function highlightSyntax(code) {
     // 5. Highlight Functions
     result = result.replace(/\b([a-zA-Z_][a-zA-Z0-9_]*)\s*\(/g, '<span class="fn">$1</span>(');
 
-    // 6. Highlight Numbers
-    result = result.replace(/\b(\d+\.?\d*)\b/g, '<span class="num">$1</span>');
+    // 6. Highlight Numbers — hex and binary literals first, then decimal/float
+    result = result.replace(/\b(0[xX][0-9a-fA-F]+[uUlL]*)\b/g, '<span class="num">$1</span>');
+    result = result.replace(/\b(0[bB][01]+[uUlL]*)\b/g, '<span class="num">$1</span>');
+    result = result.replace(/\b(\d+\.?\d*(?:[eE][+-]?\d+)?[fFlLuU]*)\b/g, (m) => {
+        // Don't double-wrap already-highlighted hex/binary
+        return m.startsWith('0x') || m.startsWith('0X') || m.startsWith('0b') || m.startsWith('0B')
+            ? m : `<span class="num">${m}</span>`;
+    });
 
     // 7. Highlight Preprocessor Hash
     result = result.replace(/#/g, '<span class="kw">#</span>');
@@ -466,6 +521,32 @@ function updateLessonNav() {
     
     prevBtn.disabled = currentIndex === 0;
     nextBtn.disabled = currentIndex === lessons.length - 1;
+
+    // Show/hide end-of-module next steps prompt
+    let nextSteps = document.getElementById('lessonNextSteps');
+    if (currentIndex === lessons.length - 1) {
+        if (!nextSteps) {
+            nextSteps = document.createElement('div');
+            nextSteps.id = 'lessonNextSteps';
+            nextSteps.className = 'lesson-next-steps';
+            document.querySelector('.lesson-nav').insertAdjacentElement('afterend', nextSteps);
+        }
+        const nextModuleIdx = ModuleOrder.indexOf(App.currentModule) + 1;
+        const hasNextModule = nextModuleIdx < ModuleOrder.length && ModuleRegistry[ModuleOrder[nextModuleIdx]];
+        const nextModuleId  = hasNextModule ? ModuleOrder[nextModuleIdx] : null;
+        nextSteps.innerHTML = `
+            <div class="next-steps-title">🎉 You've finished the <strong>${ModuleNames[App.currentModule]}</strong> module!</div>
+            <div class="next-steps-actions">
+                <button class="action-btn primary" onclick="renderPractice('${App.currentModule}')">Practice Problems</button>
+                <button class="action-btn secondary" onclick="renderQuiz('${App.currentModule}')">Take the Quiz</button>
+                <button class="action-btn secondary" onclick="renderExam('${App.currentModule}')">Take the Exam</button>
+                ${nextModuleId ? `<button class="action-btn accent" onclick="renderLesson('${nextModuleId}', ModuleRegistry['${nextModuleId}'].lessons[0].id)">Next Module: ${ModuleNames[nextModuleId]} →</button>` : ''}
+            </div>
+        `;
+        nextSteps.classList.remove('hidden');
+    } else if (nextSteps) {
+        nextSteps.classList.add('hidden');
+    }
 }
 
 // ===== Practice Rendering =====
@@ -516,12 +597,26 @@ function renderPractice(moduleId) {
     
     practiceList.innerHTML = html;
     showView('practice');
+    updateSidebarActive();
 }
 
 function toggleSolution(btn) {
     const content = btn.nextElementSibling;
     content.classList.toggle('show');
     btn.textContent = content.classList.contains('show') ? 'Hide Solution' : 'Show Solution';
+
+    // Mark the problem as attempted the first time the solution is revealed
+    if (content.classList.contains('show') && App.currentModule) {
+        const card = btn.closest('.practice-card');
+        if (card) {
+            const key = `${App.currentModule}-practice-${card.dataset.index}`;
+            if (!App.progress.attemptedProblems.includes(key)) {
+                App.progress.attemptedProblems.push(key);
+                saveProgress();
+                renderNavigation(); // refresh sidebar badge
+            }
+        }
+    }
 }
 
 // ===== Quiz Rendering =====
@@ -540,6 +635,7 @@ function renderQuiz(moduleId) {
     
     renderQuizQuestion(0);
     showView('quiz');
+    updateSidebarActive();
 }
 
 function renderQuizQuestion(index) {
@@ -601,41 +697,70 @@ function prevQuizQuestion() {
 function submitQuiz() {
     const module = ModuleRegistry[App.currentModule];
     const quiz = module.quiz;
+
+    // Guard: warn about unanswered questions
+    const unanswered = quiz.filter((_, i) => App.quizAnswers[i] === undefined).length;
+    if (unanswered > 0) {
+        if (!confirm(`You have ${unanswered} unanswered question${unanswered > 1 ? 's' : ''}. Submit anyway? Skipped questions will be marked wrong.`)) return;
+    }
     
     let correct = 0;
     quiz.forEach((q, i) => {
-        if (App.quizAnswers[i] === q.answer) {
-            correct++;
-        }
+        if (App.quizAnswers[i] === q.answer) correct++;
     });
     
     const score = Math.round((correct / quiz.length) * 100);
-    App.progress.quizScores[App.currentModule] = score;
+    // Keep the best score, never overwrite a higher one
+    App.progress.quizScores[App.currentModule] = Math.max(score, App.progress.quizScores[App.currentModule] || 0);
     saveProgress();
     
-    // Show results
+    // Hide nav, show results
     document.getElementById('quizNav').classList.add('hidden');
     const resultsDiv = document.getElementById('quizResults');
     resultsDiv.classList.remove('hidden');
-    
+
+    const labels = ['A', 'B', 'C', 'D'];
+    let reviewHtml = '<div class="results-review">';
+    quiz.forEach((q, i) => {
+        const userAnswer = App.quizAnswers[i];
+        const isCorrect  = userAnswer === q.answer;
+        reviewHtml += `
+            <div class="review-question ${isCorrect ? 'review-correct' : 'review-incorrect'}">
+                <div class="review-question-header">
+                    <span class="review-status-icon">${isCorrect ? '✓' : '✗'}</span>
+                    <span class="review-question-text">Q${i + 1}: ${q.question}</span>
+                </div>
+                <div class="review-options">
+                    ${q.options.map((opt, j) => {
+                        let cls = 'review-option';
+                        if (j === q.answer) cls += ' review-option-correct';
+                        else if (j === userAnswer) cls += ' review-option-wrong';
+                        return `<div class="${cls}"><span class="option-label">${labels[j]}</span><span>${opt}</span></div>`;
+                    }).join('')}
+                </div>
+                ${!isCorrect && userAnswer === undefined ? '<div class="review-skipped">Not answered</div>' : ''}
+            </div>`;
+    });
+    reviewHtml += '</div>';
+
     resultsDiv.innerHTML = `
         <div class="results-score">${score}%</div>
-        <div class="results-text">${score >= 70 ? 'Congratulations! You passed!' : 'Keep practicing!'}</div>
+        <div class="results-text">${score >= 70 ? '✓ Passed!' : 'Keep practicing!'}</div>
         <div class="results-details">
-            <div class="results-stat">
-                <div class="results-stat-value">${correct}</div>
-                <div class="results-stat-label">Correct</div>
-            </div>
-            <div class="results-stat">
-                <div class="results-stat-value">${quiz.length - correct}</div>
-                <div class="results-stat-label">Incorrect</div>
-            </div>
+            <div class="results-stat"><div class="results-stat-value">${correct}</div><div class="results-stat-label">Correct</div></div>
+            <div class="results-stat"><div class="results-stat-value">${quiz.length - correct}</div><div class="results-stat-label">Incorrect</div></div>
+            <div class="results-stat"><div class="results-stat-value">${App.progress.quizScores[App.currentModule]}%</div><div class="results-stat-label">Best Score</div></div>
         </div>
-        <button class="action-btn primary" onclick="renderQuiz('${App.currentModule}')">Retake Quiz</button>
-        <button class="action-btn secondary" onclick="showDashboard()">Back to Dashboard</button>
+        <div class="results-review-label">Answer Review</div>
+        ${reviewHtml}
+        <div class="results-actions">
+            <button class="action-btn primary" onclick="renderQuiz('${App.currentModule}')">Retake Quiz</button>
+            <button class="action-btn secondary" onclick="showDashboard()">Back to Dashboard</button>
+        </div>
     `;
     
     updateStats();
+    renderNavigation();
 }
 
 // ===== Exam Rendering =====
@@ -654,6 +779,7 @@ function renderExam(moduleId) {
     
     renderExamQuestions();
     showView('exam');
+    updateSidebarActive();
 }
 
 function renderExamQuestions() {
@@ -702,39 +828,71 @@ function selectExamOption(questionIndex, optionIndex) {
 function submitExam() {
     const module = ModuleRegistry[App.currentModule];
     const exam = module.exam;
+
+    // Guard: warn about unanswered questions
+    const unanswered = exam.filter((_, i) => App.examAnswers[i] === undefined).length;
+    if (unanswered > 0) {
+        if (!confirm(`You have ${unanswered} unanswered question${unanswered > 1 ? 's' : ''}. Submit anyway? Skipped questions will be marked wrong.`)) return;
+    }
+    if (!confirm('Submit exam? Your score will be recorded.')) return;
     
     let correct = 0;
     exam.forEach((q, i) => {
-        if (App.examAnswers[i] === q.answer) {
-            correct++;
-        }
+        if (App.examAnswers[i] === q.answer) correct++;
     });
     
     const score = Math.round((correct / exam.length) * 100);
-    App.progress.examScores[App.currentModule] = score;
+    // Keep the best score, never overwrite a higher one
+    App.progress.examScores[App.currentModule] = Math.max(score, App.progress.examScores[App.currentModule] || 0);
     saveProgress();
     
     const resultsDiv = document.getElementById('examResults');
     resultsDiv.classList.remove('hidden');
-    
+    // Scroll to results
+    resultsDiv.scrollIntoView({ behavior: 'smooth', block: 'start' });
+
+    const labels = ['A', 'B', 'C', 'D'];
+    let reviewHtml = '<div class="results-review">';
+    exam.forEach((q, i) => {
+        const userAnswer = App.examAnswers[i];
+        const isCorrect  = userAnswer === q.answer;
+        reviewHtml += `
+            <div class="review-question ${isCorrect ? 'review-correct' : 'review-incorrect'}">
+                <div class="review-question-header">
+                    <span class="review-status-icon">${isCorrect ? '✓' : '✗'}</span>
+                    <span class="review-question-text">Q${i + 1}: ${q.question}</span>
+                </div>
+                <div class="review-options">
+                    ${q.options.map((opt, j) => {
+                        let cls = 'review-option';
+                        if (j === q.answer) cls += ' review-option-correct';
+                        else if (j === userAnswer) cls += ' review-option-wrong';
+                        return `<div class="${cls}"><span class="option-label">${labels[j]}</span><span>${opt}</span></div>`;
+                    }).join('')}
+                </div>
+                ${!isCorrect && userAnswer === undefined ? '<div class="review-skipped">Not answered</div>' : ''}
+            </div>`;
+    });
+    reviewHtml += '</div>';
+
     resultsDiv.innerHTML = `
         <div class="results-score">${score}%</div>
-        <div class="results-text">${score >= 80 ? 'Excellent work!' : score >= 60 ? 'Good effort!' : 'Keep studying!'}</div>
+        <div class="results-text">${score >= 80 ? '✓ Excellent work!' : score >= 60 ? 'Good effort!' : 'Keep studying!'}</div>
         <div class="results-details">
-            <div class="results-stat">
-                <div class="results-stat-value">${correct}</div>
-                <div class="results-stat-label">Correct</div>
-            </div>
-            <div class="results-stat">
-                <div class="results-stat-value">${exam.length - correct}</div>
-                <div class="results-stat-label">Incorrect</div>
-            </div>
+            <div class="results-stat"><div class="results-stat-value">${correct}</div><div class="results-stat-label">Correct</div></div>
+            <div class="results-stat"><div class="results-stat-value">${exam.length - correct}</div><div class="results-stat-label">Incorrect</div></div>
+            <div class="results-stat"><div class="results-stat-value">${App.progress.examScores[App.currentModule]}%</div><div class="results-stat-label">Best Score</div></div>
         </div>
-        <button class="action-btn primary" onclick="renderExam('${App.currentModule}')">Retake Exam</button>
-        <button class="action-btn secondary" onclick="showDashboard()">Back to Dashboard</button>
+        <div class="results-review-label">Answer Review</div>
+        ${reviewHtml}
+        <div class="results-actions">
+            <button class="action-btn primary" onclick="renderExam('${App.currentModule}')">Retake Exam</button>
+            <button class="action-btn secondary" onclick="showDashboard()">Back to Dashboard</button>
+        </div>
     `;
     
     updateStats();
+    renderNavigation();
 }
 
 // ===== Code Editor =====
@@ -768,6 +926,7 @@ function editCode(btn) {
 async function runCode() {
     const code = editorInstance.getValue();
     const outputArea = document.getElementById('outputArea');
+    const stdinValue = document.getElementById('stdinArea').value || "";
     outputArea.textContent = "Compiling and running... (Please wait)";
 
     try {
@@ -780,11 +939,12 @@ async function runCode() {
             },
             body: JSON.stringify({
                 source_code: code,
-                language_id: 50
+                language_id: 50,
+                stdin: stdinValue
             })
         });
 
-        // If the API itself is unreachable or rate-limiting us, surface a clear message
+        // Handle HTTP-level errors without throwing into the generic catch
         if (!response.ok) {
             if (response.status === 429) {
                 outputArea.textContent = "// Rate limit reached on the Judge0 API.\n// Please wait a moment and try again.";
@@ -797,49 +957,42 @@ async function runCode() {
         const data = await response.json();
 
         // Judge0 status IDs:
-        //  1 = In Queue, 2 = Processing, 3 = Accepted (success)
-        //  4 = Wrong Answer, 5 = Time Limit Exceeded, 6 = Compilation Error
-        //  7–12 = Runtime Errors (SIGSEGV=11, SIGFPE=8, SIGABRT=7, etc.)
-        //  13 = Internal Error, 14 = Exec Format Error
+        //  1=In Queue  2=Processing  3=Accepted (success)
+        //  4=Wrong Answer  5=Time Limit Exceeded  6=Compilation Error
+        //  7-12=Runtime Errors (SIGABRT=7, SIGFPE=8, SIGKILL=9, SIGSEGV=11, etc.)
+        //  13=Internal Error  14=Exec Format Error
         const statusId = data.status?.id;
 
         if (statusId === 6 || data.compile_output) {
-            // Compilation error — always has compile_output
             outputArea.textContent = "Compilation Error:\n" + (data.compile_output || "Unknown compilation failure.");
 
         } else if (statusId === 5) {
             outputArea.textContent = "// Time Limit Exceeded.\n// Your program ran too long and was terminated.";
 
         } else if (statusId >= 7 && statusId <= 12) {
-            // Runtime error (segfault, SIGFPE for div-by-zero, etc.)
+            // Runtime error — segfault, SIGFPE (div-by-zero), stack overflow, UB, etc.
             const signal = data.status?.description || "Runtime Error";
             let msg = `Runtime Error: ${signal}\n`;
             if (data.stderr) {
                 msg += data.stderr;
             } else {
-                // Provide a helpful hint when no stderr is produced (common with UB/segfaults)
-                msg += "// No additional output.\n// Possible causes: segmentation fault, division by zero,\n// stack overflow, or undefined behaviour.";
+                msg += "// No additional output captured.\n// Likely causes: segmentation fault, division by zero,\n// stack overflow, or undefined behaviour.";
             }
             outputArea.textContent = msg;
 
         } else if (statusId === 13 || statusId === 14) {
             outputArea.textContent = `// Execution server internal error (status ${statusId}).\n// Try again or simplify your program.`;
 
-        } else if (statusId === 3 || data.stdout !== undefined) {
-            // Accepted / successful run
-            // stderr can still contain warnings even on success — show both
+        } else {
+            // Accepted (statusId === 3) or successful run
             let out = "";
             if (data.stdout) out += data.stdout;
             if (data.stderr) out += (out ? "\n" : "") + "Warnings / stderr:\n" + data.stderr;
             outputArea.textContent = out || "// Program finished with no output.";
-
-        } else {
-            // Fallback: show whatever the API gave us
-            outputArea.textContent = data.message || `// Unknown execution state (status id: ${statusId ?? "none"}).`;
         }
 
     } catch (error) {
-        // Only genuine network failures (DNS, CORS, offline) land here
+        // Only genuine network failures (offline, DNS, CORS) land here
         outputArea.textContent = "// Could not reach the execution server.\n// Check your internet connection and try again.\n// (" + error.message + ")";
     }
 }
@@ -848,6 +1001,7 @@ function resetCode() {
     if (editorInstance) {
         editorInstance.setValue('');
     }
+    document.getElementById('stdinArea').value = '';
     document.getElementById('outputArea').textContent = '// Output will appear here';
 }
 
@@ -935,6 +1089,7 @@ function setupEventListeners() {
                 completedLessons: [],
                 quizScores: {},
                 examScores: {},
+                attemptedProblems: [],
                 streak: App.progress.streak,
                 lastVisit: App.progress.lastVisit
             };
@@ -957,6 +1112,14 @@ function setupEventListeners() {
         const module = ModuleRegistry[App.currentModule];
         const currentIndex = module.lessons.findIndex(l => l.id === App.currentLesson);
         if (currentIndex < module.lessons.length - 1) {
+            // Auto-mark the current lesson complete when the user clicks Next
+            const key = `${App.currentModule}-${App.currentLesson}`;
+            if (!App.progress.completedLessons.includes(key)) {
+                App.progress.completedLessons.push(key);
+                saveProgress();
+                updateStats();
+                updateOverallProgress();
+            }
             renderLesson(App.currentModule, module.lessons[currentIndex + 1].id);
         }
     });
@@ -1008,6 +1171,8 @@ function setupEventListeners() {
 }
 
 function showDashboard() {
+    App.currentModule = null;
+    App.currentLesson = null;
     renderNavigation();
     renderDashboard();
     showView('dashboard');
@@ -1026,6 +1191,8 @@ window.submitQuiz = submitQuiz;
 window.submitExam = submitExam;
 window.renderQuiz = renderQuiz;
 window.renderExam = renderExam;
+window.renderPractice = renderPractice;
+window.renderLesson = renderLesson;
 window.showDashboard = showDashboard;
 window.runCode = runCode;
 window.resetCode = resetCode;

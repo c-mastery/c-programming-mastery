@@ -199,8 +199,15 @@
                     <button class="action-btn primary" id="runCode">Run Code</button>
                     <button class="action-btn secondary" id="resetCode">Reset</button>
                 </div>
+                <div class="stdin-container">
+                    <div class="output-label">
+                        stdin — Program Input
+                        <span class="stdin-hint">(type values here that scanf / fgets will read)</span>
+                    </div>
+                    <textarea class="stdin-area" id="stdinArea" placeholder="e.g. 42&#10;Hello World&#10;3.14" spellcheck="false" rows="3"></textarea>
+                </div>
                 <div class="output-container">
-                    <div class="output-label">Simulated Output:</div>
+                    <div class="output-label">Output:</div>
                     <pre class="output-area" id="outputArea">// Output will appear here</pre>
                 </div>
             </div>
