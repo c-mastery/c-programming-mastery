@@ -97,6 +97,34 @@ int main() {
                     output: "C is powerful and fast.\nLine one.\nLine two."
                 },
                 {
+                    title: "Writing to Strings: snprintf",
+                    content: "Sometimes you need a formatted string in memory rather than printed to the screen — to pass to another function, store in a struct, or build up incrementally. <code>snprintf</code> does exactly what <code>printf</code> does but writes into a char array. The <code>n</code> stands for the size limit: it will never write more than <code>n-1</code> characters plus a null terminator, making it the only safe way to format strings in C. Never use the old <code>sprintf</code> — it has no size limit and is a buffer overflow waiting to happen.",
+                    code: `#include <stdio.h>
+
+int main() {
+    char message[64];
+    int score = 95;
+    char name[] = "Alex";
+
+    // snprintf writes into a buffer instead of to the screen
+    // The '64' is the maximum bytes to write (including null terminator)
+    snprintf(message, sizeof(message), "Player %s scored %d points!", name, score);
+
+    // Now 'message' holds the formatted string
+    printf("%s\\n", message);
+
+    // Build a file path safely
+    char path[128];
+    int level = 3;
+    snprintf(path, sizeof(path), "/save/level_%02d.dat", level);
+    printf("Save path: %s\\n", path);
+
+    return 0;
+}`,
+                    output: "Player Alex scored 95 points!\nSave path: /save/level_03.dat",
+                    tip: "<code>snprintf</code> returns the number of characters that <em>would</em> have been written if the buffer were large enough — not the number actually written. If the return value is >= the buffer size, the output was truncated. You can check this to detect overflow: <code>if (snprintf(buf, n, ...) >= n) { /* truncated */ }</code>."
+                },
+                {
                     title: "Escape Sequences",
                     content: "Some characters can't appear literally inside a string. You can't press Enter mid-string and have it produce a newline in output — pressing Enter would just move your cursor to the next line in the editor. You can't type a backslash and expect it to appear as-is, because the backslash is the escape character. Escape sequences solve these problems: the backslash <code>\\</code> acts as a signal that says 'the next character is special — treat this two-character combination as one special character'.",
                     points: [
@@ -140,7 +168,8 @@ int main() {
     return 0;
 }`,
                     output: "I want to buy 5 items.\nThe price is $19.99 each.\nFlags in hex: 0xFF",
-                    tip: "The <code>%.2f</code> means 'print this float with exactly 2 decimal places'. If you use plain <code>%f</code>, you'll get something like <code>19.990000</code>, which is technically correct but looks awful. The format is <code>%[width].[precision]f</code> — you can control how many digits appear on each side of the decimal point."
+                    tip: "The <code>%.2f</code> means 'print this float with exactly 2 decimal places'. The format is <code>%[width].[precision]f</code>. You can also use <code>snprintf</code> instead of <code>printf</code> to write formatted output into a string buffer rather than to the screen — and unlike the old <code>sprintf</code>, <code>snprintf</code> takes a maximum size argument and will never overflow the buffer. Use <code>snprintf</code> any time you need to build a formatted string in memory.",
+                    warning: "<strong>Format string vulnerability</strong>: Never write <code>printf(userInput)</code> where <code>userInput</code> is data you received from outside your program. Always write <code>printf(\"%s\", userInput)</code>. If the user supplies a string containing <code>%d</code>, <code>%x</code>, or <code>%n</code> as the format string itself, <code>printf</code> will read off the stack looking for arguments that aren't there. This is a real, exploited vulnerability class. The fix is one extra argument."
                 }
             ]
         },

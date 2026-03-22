@@ -315,6 +315,97 @@ int main() {
             ]
         },
         {
+            id: "undefined-behavior",
+            title: "Undefined Behavior: The Compiler is Not Your Friend",
+            explanation: "Undefined behavior (UB) is the most dangerous concept in C, and it is systematically misunderstood. Most beginners read 'undefined behavior' and think it means 'the program might crash'. That is the optimistic interpretation. The real meaning is: the C standard places no requirements on what the compiler or CPU must do. The compiler is allowed to assume UB never occurs — and it uses that assumption to optimize aggressively. This means if your code contains UB, the compiler can legally delete your safety checks, invert your conditionals, remove your null pointer tests, and transform your program into something that bears no resemblance to what you wrote — all while producing zero warnings. UB is not a runtime failure mode. It is a contract violation that corrupts the translation process itself.",
+            sections: [
+                {
+                    title: "What 'Undefined' Actually Means to the Compiler",
+                    content: "When the C standard says behavior is undefined, it is giving the compiler a license. The compiler is allowed to assume UB never happens in a correct program — and it uses that assumption to justify optimizations. Consider a null pointer check: if the compiler can prove that dereferencing the pointer happens before the check, it concludes 'the pointer must not be null here, because if it were, that dereference would be UB, and UB cannot happen in a correct program.' Therefore the check is dead code and gets deleted. Your safety net disappears without a warning.",
+                    points: [
+                        "<strong>Three categories, not one</strong>: <em>Undefined behavior</em> — no requirements, anything can happen. <em>Implementation-defined behavior</em> — the implementation must pick one outcome and document it (e.g., the size of <code>int</code>). <em>Unspecified behavior</em> — the implementation picks an outcome from a valid set but need not document it (e.g., evaluation order of function arguments).",
+                        "<strong>The compiler assumes UB-free input</strong>: This is the key. GCC and Clang treat UB as a dead branch. Code that would only execute if UB occurred can be removed entirely. This makes certain classes of security checks silently disappear.",
+                        "<strong>UB in the past poisons the future</strong>: Once your program executes UB, all subsequent behavior is undefined — not just the operation that caused it. The time-traveling nature of UB is what makes it so dangerous: the observable failure can happen far away from the actual cause."
+                    ],
+                    code: `#include <stdio.h>
+#include <stdlib.h>
+
+// Classic UB-removal example: signed integer overflow
+// The compiler KNOWS signed overflow is UB.
+// It therefore concludes (x+1 > x) is ALWAYS true for signed x.
+// The dead-code elimination removes the entire else branch.
+void signedOverflow(int x) {
+    if (x + 1 > x) {
+        printf("Greater (always printed)\\n");
+    } else {
+        printf("This branch can be compiled away entirely\\n");
+    }
+}
+
+// Null pointer check removed by optimizer:
+// The dereference of ptr happens before the NULL check in this
+// contrived example. Compiler concludes ptr != NULL at the check site.
+int removeNullCheck(int *ptr) {
+    int val = *ptr;      // dereference first
+    if (ptr == NULL)     // compiler: "ptr can't be NULL, we just deref'd it"
+        return -1;       // this gets optimized away
+    return val;
+}
+
+int main(void) {
+    signedOverflow(2147483647); // INT_MAX
+    printf("%d\\n", removeNullCheck(NULL)); // UB: deref NULL
+    return 0;
+}`
+                },
+                {
+                    title: "The Most Common Sources of UB",
+                    content: "These are not obscure edge cases — they are things beginners write in their first week of C. Every one of them compiles without errors by default.",
+                    points: [
+                        "<strong>Signed integer overflow</strong>: <code>int x = INT_MAX; x++;</code> — undefined. The compiler may assume this never happens and remove surrounding guards. Use unsigned types or check before operating: <code>if (x < INT_MAX) x++;</code>",
+                        "<strong>Reading uninitialized memory</strong>: <code>int x; printf(\"%d\", x);</code> — the value is indeterminate. On some compilers/optimizations, reading an uninitialized variable can produce different values in the same run.",
+                        "<strong>Out-of-bounds array access</strong>: <code>int arr[5]; arr[5] = 1;</code> — writing one past the end. May corrupt an adjacent variable, a return address, or nothing visible today.",
+                        "<strong>Dereferencing NULL or freed memory</strong>: Use-after-free and null dereference. The access may not crash immediately — it may silently corrupt data that causes a crash 10,000 instructions later.",
+                        "<strong>Strict aliasing violations</strong>: Accessing memory through a pointer of the wrong type. <code>int x = 0; float *f = (float*)&x; *f = 1.0f;</code> — undefined unless you use <code>memcpy</code>, <code>char*</code>, or <code>unsigned char*</code>.",
+                        "<strong>Modifying a string literal</strong>: <code>char *s = \"hello\"; s[0] = 'H';</code> — string literals live in read-only memory on most platforms. The segfault is not guaranteed — which makes it worse."
+                    ],
+                    code: `// Compile with: gcc -O2 -fsanitize=undefined -Wall
+#include <stdio.h>
+#include <limits.h>
+
+int main(void) {
+    // 1. Signed overflow (UB)
+    int a = INT_MAX;
+    // With -O2, compiler may assume this branch is never reached
+    // With -fsanitize=undefined: runtime error reported
+    printf("%d\\n", a + 1);
+
+    // 2. Uninitialized read (UB)
+    int b;
+    // Value could be anything. With ASan: may report use of uninitialized value
+    // printf("%d\\n", b); // uncomment to test
+
+    // 3. Array out of bounds (UB)
+    int arr[3] = {1, 2, 3};
+    // arr[3] reads/writes memory it doesn't own
+    // printf("%d\\n", arr[3]); // uncomment to test with -fsanitize=address
+
+    return 0;
+}`,
+                    tip: "The practical defense is the three-build workflow: develop with <code>-Wall -Wextra -Werror</code>, test with <code>-fsanitize=address,undefined</code>, release with <code>-O2 -DNDEBUG</code>. UBSan catches the majority of UB at runtime during testing, before it reaches production where the optimizer turns it into something catastrophic."
+                },
+                {
+                    title: "Implementation-Defined vs Undefined: Know the Difference",
+                    content: "Not everything non-obvious is undefined behavior. Some behavior is <em>implementation-defined</em> — the compiler must pick one consistent behavior and document it. These are safe to rely on if you know your target platform, but non-portable.",
+                    points: [
+                        "<strong>Implementation-defined (safe, non-portable)</strong>: The size of <code>int</code>, the result of right-shifting a negative signed integer, the signedness of <code>char</code>. Your compiler documents these. Code relying on them works on that compiler but may break on others.",
+                        "<strong>Undefined (never safe)</strong>: Signed overflow, out-of-bounds access, null dereference, data races. No documented outcome. The compiler assumes these cannot occur in your program and optimizes accordingly.",
+                        "<strong>Rule of thumb</strong>: If you're unsure whether something is UB, compile with <code>-fsanitize=undefined</code> and run your tests. If UBSan fires, it's UB. If it doesn't fire and Clang and GCC both compile it identically, it's probably implementation-defined."
+                    ]
+                }
+            ]
+        },
+        {
             id: "dynamic-memory",
             title: "Dynamic Memory Allocation",
             explanation: "Every local variable and array you've declared so far has lived on the <em>stack</em> — a memory region whose layout is determined entirely at compile time. The stack is fast and automatically managed, but it has two hard limits: its total size is fixed (typically 1–8 MB), and every allocation must be a size known when you compile. These constraints rule out entire categories of real programs. A text editor cannot know at compile time how long the user's document will be. A web server cannot know how many simultaneous connections it will receive. A database cannot know how many rows a query will return. Dynamic memory allocation solves both problems: you request memory at runtime from the <em>heap</em>, in whatever size you compute at runtime. The heap is large — limited only by available system RAM. The cost is total responsibility: every byte you allocate, you must free exactly once, at the right time. No garbage collector. No automatic cleanup. Leak memory and it accumulates until the system runs out. Free too early and you have a use-after-free that corrupts memory silently. Free twice and you corrupt the allocator's internal data structures. This discipline is the price of C's power.",
@@ -803,6 +894,72 @@ ERROR: AddressSanitizer: heap-use-after-free on address 0x... at pc ...
 READ of size 4 at 0x... thread T0
   #0 main prog.c:15`,
                     tip: "The standard professional workflow: <strong>develop</strong> with <code>-Wall -Wextra -Werror</code>, <strong>test</strong> with <code>-fsanitize=address,undefined -g</code>, <strong>release</strong> with <code>-O2 -DNDEBUG</code>. These three build configurations catch the vast majority of C bugs before they reach production."
+                }
+            ]
+        },
+        {
+            id: "valgrind",
+            title: "Memory Debugging with Valgrind",
+            explanation: "AddressSanitizer catches memory errors at runtime when your code is compiled with instrumentation. Valgrind takes a different approach: it runs your unmodified binary inside a virtual CPU that intercepts every memory operation. This makes Valgrind slower (5–20× slower than native) but gives it capabilities ASan doesn't have: it tracks the exact origin of every heap allocation, detects use of uninitialized values (not just out-of-bounds), and produces detailed leak reports showing the call stack where each leaked allocation was made. On Linux, Valgrind is often the first tool developers reach for when a bug is subtle.",
+            sections: [
+                {
+                    title: "Basic Usage and Output",
+                    content: "Compile your program normally with <code>-g</code> (debug symbols — no sanitizers needed). Run under Valgrind. Read the report.",
+                    code: `# Compile with debug info (no -fsanitize needed)
+gcc -g -Wall program.c -o program
+
+# Basic memory check
+valgrind ./program
+
+# Full leak check with origin tracking
+valgrind --leak-check=full --show-leak-kinds=all --track-origins=yes ./program
+
+# Suppress known false positives (advanced)
+valgrind --suppressions=myproject.supp ./program`,
+                    points: [
+                        "<strong>--leak-check=full</strong>: Report every leaked allocation with the full call stack showing where it was allocated. This is the most useful flag — without it you only get a summary count.",
+                        "<strong>--track-origins=yes</strong>: When Valgrind reports use of uninitialized memory, this flag adds the call stack where the uninitialized memory was allocated. Slow but invaluable.",
+                        "<strong>--error-exitcode=1</strong>: Make Valgrind exit with a non-zero status if any errors were found. Useful in CI/CD pipelines.",
+                        "<strong>Exit code</strong>: If Valgrind reports errors, fix the <em>first</em> one first. Memory errors cascade — a use-after-free early in the program can corrupt allocator metadata and cause dozens of false positives downstream."
+                    ]
+                },
+                {
+                    title: "Reading Valgrind Output",
+                    content: "Valgrind error reports follow a consistent format. Learning to read them quickly is a skill worth developing.",
+                    code: `// This program has three bugs Valgrind catches:
+#include <stdio.h>
+#include <stdlib.h>
+#include <string.h>
+
+int main(void) {
+    // Bug 1: Use of uninitialized value
+    int x;
+    if (x > 0) printf("positive\\n");   // x is garbage
+
+    // Bug 2: Heap buffer overread
+    char *buf = malloc(5);
+    strcpy(buf, "hello");               // writes 6 bytes into 5-byte buffer
+    printf("%s\\n", buf);
+
+    // Bug 3: Memory leak — buf never freed
+    // free(buf);  <-- intentionally omitted
+    return 0;
+}`,
+                    output: `==12345== Memcheck, a memory error detector
+==12345== Use of uninitialised value of size 4
+==12345==    at 0x401180: main (program.c:9)
+==12345==
+==12345== Invalid write of size 1
+==12345==    at 0x4C2FB55: strcpy (in /usr/lib/valgrind/...)
+==12345==    by 0x4011A2: main (program.c:13)
+==12345==  Address 0x5204049 is 0 bytes after a block of size 5 alloc'd
+==12345==    at 0x4C2FB0F: malloc (in /usr/lib/valgrind/...)
+==12345==    by 0x401196: main (program.c:12)
+==12345==
+==12345== LEAK SUMMARY:
+==12345==    definitely lost: 5 bytes in 1 blocks
+==12345==       at 0x4C2FB0F: malloc (program.c:12)`,
+                    tip: "ASan vs Valgrind: use ASan during development (fast, no special compile flags beyond <code>-fsanitize=address</code>). Use Valgrind when you need leak attribution with call stacks, when you can't recompile (e.g., testing a third-party library), or when investigating uninitialized-read bugs that ASan doesn't catch."
                 }
             ]
         },

@@ -550,7 +550,7 @@ int main() {
                     title: "String-to-Number Conversions (stdlib.h)",
                     content: "Reading numbers from command-line arguments or text files means dealing with strings that need to become actual numeric types. <code>atoi</code> is the simple version; <code>strtol</code> and friends are the correct version for any real code.",
                     points: [
-                        "<code>atoi(str)</code>: Converts a string to <code>int</code>. Fast and simple, but has no error detection — if the string isn't a valid number, it returns 0, which is indistinguishable from an actual 0. Avoid in any code that needs to validate input.",
+                        "<code>atoi(str)</code>: Converts a string to <code>int</code>. Fast and simple, but has no error detection — if the string isn't a valid number, it returns 0, which is indistinguishable from an actual 0. Avoid in any code that needs to validate input. Never use atoi() for untrusted input: <code>atoi(\"abc\")</code> returns 0 with no error. <code>atoi(\"99999999999\")</code> overflows silently. It cannot distinguish a valid 0 from a parsing failure. Use <code>strtol</code> instead — it returns the parsed value, sets <code>errno</code> on overflow, and tells you exactly where parsing stopped via an end pointer.",
                         "<code>strtol(str, endptr, base)</code>: Converts a string to <code>long</code> with full error detection. <code>endptr</code> is set to point to the first character that wasn't part of the number — if it points to the start of the string, no conversion happened. <code>base</code> is the numeric base (10 for decimal, 16 for hex, 0 to auto-detect from prefix). Check <code>errno</code> for overflow.",
                         "<code>strtod(str, endptr)</code>: Same as <code>strtol</code> but converts to <code>double</code>. Use this instead of <code>atof</code> for the same error-detection reasons.",
                         "<code>sprintf(buf, fmt, ...)</code> / <code>snprintf</code>: Convert numbers back to strings. <code>snprintf</code> is the safe version — it takes a max size and never overflows the buffer. Always use <code>snprintf</code> over <code>sprintf</code>."
@@ -628,6 +628,131 @@ int main() {
 }`,
                     output: "sqrt(16)      = 4.0\npow(2, 10)    = 1024\nfabs(-3.14)   = 3.14\nfloor(3.7)    = 3.0\nceil(3.2)     = 4.0\nround(3.5)    = 4.0\nround(3.4)    = 3.0\nsin(45 deg)   = 0.7071\ncos(45 deg)   = 0.7071\nlog(M_E)      = 1.0\nlog2(1024)    = 10.0\nlog10(1000)   = 3.0",
                     warning: "Floating-point math is never exact. <code>0.1 + 0.2</code> in double precision is not exactly <code>0.3</code> — it's <code>0.30000000000000004</code>. Never compare floating-point results with <code>==</code>. Instead, check if the absolute difference is smaller than an acceptable tolerance: <code>if (fabs(a - b) < 1e-9)</code>. This also means <code>sqrt(x) * sqrt(x) == x</code> may be false for many values of x."
+                }
+            ]
+        },
+        {
+            id: "common-mistakes",
+            title: "The 12 Most Dangerous C Mistakes",
+            explanation: "These are not hypothetical edge cases — they are bugs that appear in beginner code within the first week, and in production codebases written by experienced developers under deadline pressure. Every one compiles without errors. Most produce no immediate crash. They are collected here as a reference: check this list whenever something is wrong and you can't find it.",
+            sections: [
+                {
+                    title: "Mistakes 1–4: String Disasters",
+                    points: [
+                        "<strong>1. scanf(\"%s\", buf) without a width limit</strong>: Any input longer than the buffer is a buffer overflow. Fix: <code>scanf(\"%63s\", buf)</code> for a 64-byte buffer (63 chars + null terminator).",
+                        "<strong>2. Comparing strings with ==</strong>: <code>if (str == \"hello\")</code> compares pointer addresses, not content. Always use <code>strcmp(str, \"hello\") == 0</code>.",
+                        "<strong>3. strncpy does not guarantee null termination</strong>: <code>strncpy(dst, src, n)</code> will not write a null terminator if <code>src</code> is longer than <code>n</code>. Always add: <code>dst[n-1] = '\\0';</code> after the call, or use <code>snprintf</code> instead.",
+                        "<strong>4. printf(userInput) as a format string</strong>: If <code>userInput</code> contains <code>%s</code>, <code>%n</code>, or other specifiers, <code>printf</code> will read off the stack. Always: <code>printf(\"%s\", userInput)</code>."
+                    ],
+                    code: `#include <stdio.h>
+#include <string.h>
+
+int main(void) {
+    char buf[16];
+
+    // WRONG — buffer overflow if input > 15 chars
+    // scanf("%s", buf);
+
+    // RIGHT — width-limited
+    scanf("%15s", buf);
+
+    // WRONG — compares pointer addresses, always false
+    // if (buf == "hello") printf("match\\n");
+
+    // RIGHT — compares content
+    if (strcmp(buf, "hello") == 0) printf("match\\n");
+
+    // WRONG — may not null-terminate
+    char dst[8];
+    strncpy(dst, "toolongstring", sizeof(dst));
+    // dst[7] may not be '\\0'
+
+    // RIGHT
+    snprintf(dst, sizeof(dst), "%s", "toolongstring");
+    // Always null-terminates
+    printf("%s\\n", dst);
+
+    return 0;
+}`
+                },
+                {
+                    title: "Mistakes 5–8: Pointer and Memory Errors",
+                    points: [
+                        "<strong>5. Returning a pointer to a local variable</strong>: The local is destroyed when the function returns. The pointer now points to garbage. Fix: allocate on the heap with <code>malloc</code> and document that the caller must <code>free</code> it, or pass a buffer in as a parameter.",
+                        "<strong>6. Using a pointer after free()</strong>: After <code>free(ptr)</code>, <code>ptr</code> is a dangling pointer. Reading or writing through it is undefined behavior. Fix: immediately set <code>ptr = NULL</code> after every <code>free</code>.",
+                        "<strong>7. Double free</strong>: Calling <code>free(ptr)</code> twice corrupts the allocator's internal data structures, often causing a crash or exploitable heap corruption later. Fix: set <code>ptr = NULL</code> after free — <code>free(NULL)</code> is defined as a no-op.",
+                        "<strong>8. Forgetting to check malloc's return value</strong>: On out-of-memory, <code>malloc</code> returns <code>NULL</code>. Dereferencing <code>NULL</code> immediately crashes. Dereferencing it after computing an offset produces a near-zero address access — sometimes no crash, just silent corruption. Always: <code>if (!ptr) { perror(\"malloc\"); exit(1); }</code>"
+                    ],
+                    code: `#include <stdio.h>
+#include <stdlib.h>
+
+// WRONG: returning address of local variable
+int *badFunc(void) {
+    int local = 42;
+    return &local;  // local is destroyed on return — dangling pointer
+}
+
+// RIGHT: caller passes buffer, or heap allocation
+int *goodFunc(void) {
+    int *p = malloc(sizeof(int));
+    if (!p) { perror("malloc"); return NULL; }
+    *p = 42;
+    return p;  // caller must free()
+}
+
+int main(void) {
+    int *p = goodFunc();
+    if (!p) return 1;
+    printf("%d\\n", *p);
+    free(p);
+    p = NULL;  // Immediately NULL after free
+
+    // free(p);  // safe — free(NULL) is a no-op
+    return 0;
+}`
+                },
+                {
+                    title: "Mistakes 9–12: Logic and Type Errors",
+                    points: [
+                        "<strong>9. = instead of == in conditions</strong>: <code>if (x = 5)</code> assigns 5 to x and then tests if 5 is true (always yes). The compiler warns about this with <code>-Wall</code>. Some teams write constants on the left: <code>if (5 == x)</code> — then assigning to a literal is a compile error.",
+                        "<strong>10. Integer overflow in size calculations</strong>: <code>malloc(count * sizeof(int))</code> overflows silently if <code>count</code> is large enough that the multiplication wraps. Use <code>calloc(count, sizeof(int))</code> which checks for overflow on most implementations, or validate <code>count</code> before multiplying.",
+                        "<strong>11. Off-by-one in loops and buffer sizes</strong>: A char buffer of size N can hold N-1 characters plus a null terminator. A loop <code>for (i = 0; i <= N; i++)</code> iterates N+1 times. The boundary is always one less than the size.",
+                        "<strong>12. Signed/unsigned comparison</strong>: <code>-1 < 1U</code> is false because <code>-1</code> is converted to unsigned and becomes a huge positive number. Enable <code>-Wsign-compare</code> (included in <code>-Wall</code>) to catch these. Always compare values of the same signedness."
+                    ],
+                    code: `#include <stdio.h>
+#include <stdlib.h>
+#include <string.h>
+
+int main(void) {
+    // Mistake 9: assignment in condition
+    int x = 0;
+    // if (x = 5) { ... }   // Always true — probably meant x == 5
+
+    // Mistake 10: use calloc for overflow safety
+    size_t count = 1000000;
+    int *arr = calloc(count, sizeof(int));  // safer than malloc(count * sizeof(int))
+    if (!arr) { perror("calloc"); return 1; }
+
+    // Mistake 11: buffer size vs string length
+    char name[32];
+    // name holds 31 chars max + null terminator
+    snprintf(name, sizeof(name), "%s", "A long name that gets truncated");
+    printf("Name: %s\\n", name);
+
+    // Mistake 12: signed/unsigned comparison
+    int neg = -1;
+    unsigned int pos = 1;
+    // if (neg < pos) -- WARNING: comparison of integer expressions of
+    //                   different signedness
+    if ((unsigned int)neg < pos)   // explicit cast makes intent clear
+        printf("Won't print: (unsigned)-1 is huge\\n");
+    else
+        printf("Correct: cast clarifies behavior\\n");
+
+    free(arr);
+    return 0;
+}`,
+                    tip: "Print this list. Tape it to your monitor. When a program produces wrong output and you can't find the bug after 20 minutes, go through this list top to bottom. One of these twelve is the culprit more often than it should be."
                 }
             ]
         },

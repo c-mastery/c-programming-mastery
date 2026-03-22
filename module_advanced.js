@@ -244,6 +244,52 @@ int main() {
                     warning: "Bit field layout (order, padding, alignment) is implementation-defined — the C standard deliberately leaves these details up to the compiler. Two compilers can produce different layouts for the same bit field struct. For this reason, do NOT use bit field structs to directly map to raw hardware register bytes or network packets if you need portability — use explicit masking and shifting instead (<code>reg |= (1 << 3)</code>). Bit fields are safe for internal data packing where you control both the definition and the compiler."
                 },
                 {
+                    title: "Struct Padding and Memory Layout",
+                    content: "A struct is not just its fields packed end-to-end. The compiler inserts invisible padding bytes between fields to ensure each field starts at an address that is a multiple of its alignment requirement. An <code>int</code> (4 bytes) must start at a 4-byte-aligned address. A <code>double</code> (8 bytes) at an 8-byte-aligned address. The result: a struct's size is almost always larger than the sum of its fields, and the layout depends on field order.",
+                    points: [
+                        "<strong>Checking size with sizeof</strong>: Always use <code>sizeof(struct Foo)</code> rather than manually summing field sizes. The padding bytes are real and must be accounted for in <code>malloc</code>, <code>fread</code>, and <code>fwrite</code> calls.",
+                        "<strong>offsetof(type, member)</strong>: From <code>&lt;stddef.h&gt;</code>, gives the byte offset of a field within a struct. Essential for protocol parsers, binary file formats, and hardware register maps.",
+                        "<strong>Reorder fields to minimize padding</strong>: Declare fields from largest to smallest alignment requirement. This eliminates most padding without changing field values.",
+                        "<strong>__attribute__((packed))</strong>: GCC/Clang extension that removes all padding. Results in minimum size but potentially slow unaligned accesses — on ARM, unaligned access can be a hardware fault. Use only for binary wire formats where layout is mandated externally."
+                    ],
+                    code: `#include <stdio.h>
+#include <stddef.h>   // for offsetof
+
+// Wasteful layout — gaps inserted by compiler
+struct Wasteful {
+    char   a;    // 1 byte  + 3 bytes padding
+    int    b;    // 4 bytes
+    char   c;    // 1 byte  + 7 bytes padding
+    double d;    // 8 bytes
+};               // Total: 24 bytes (not 14!)
+
+// Efficient layout — largest fields first
+struct Efficient {
+    double d;    // 8 bytes (offset 0)
+    int    b;    // 4 bytes (offset 8)
+    char   a;    // 1 byte  (offset 12)
+    char   c;    // 1 byte  (offset 13)
+                 // 2 bytes padding at end for struct alignment
+};               // Total: 16 bytes
+
+int main(void) {
+    printf("Wasteful:  %zu bytes\\n", sizeof(struct Wasteful));   // 24
+    printf("Efficient: %zu bytes\\n", sizeof(struct Efficient));  // 16
+
+    printf("offsetof Wasteful.b: %zu\\n", offsetof(struct Wasteful, b)); // 4
+    printf("offsetof Wasteful.d: %zu\\n", offsetof(struct Wasteful, d)); // 16
+
+    // Critical: when writing structs to binary files, padding bytes
+    // contain garbage. Two structs with the same field values may have
+    // different bytes in their padding — memcmp() will say they differ.
+    // Always serialize field by field, never fwrite() an entire struct
+    // if portability matters.
+    return 0;
+}`,
+                    output: "Wasteful:  24 bytes\nEfficient: 16 bytes\noffsetof Wasteful.b: 4\noffsetof Wasteful.d: 16",
+                    warning: "Never use <code>fwrite(&myStruct, sizeof(myStruct), 1, file)</code> for a binary format you intend to read on another machine or compiler. The padding bytes, field sizes, and byte order (endianness) may all differ. Serialize each field explicitly with known-width types from <code>&lt;stdint.h&gt;</code>."
+                },
+                {
                     title: "Flexible Array Members",
                     content: "C99 introduced flexible array members: the last member of a struct can be an array with no specified size (<code>type name[];</code>). The struct itself doesn't allocate space for the array — you do, by allocating extra bytes when you malloc the struct. This lets you create variable-length structs with a single allocation instead of a struct plus a separate heap allocation for the data.",
                     code: `#include <stdio.h>
@@ -599,6 +645,60 @@ int main() {
     return 0;
 }`,
                     output: "Wrote 3 records\n\nRecords from file:\nID:1  Score:95.5  Name:Alice\nID:2  Score:87.3  Name:Bob\nID:3  Score:91.0  Name:Charlie"
+                },
+                {
+                    title: "Endianness: The Portability Trap in Binary I/O",
+                    content: "When you <code>fwrite</code> a multi-byte integer, the bytes are written in the order the CPU stores them in memory. x86 and ARM (in their default mode) are <em>little-endian</em>: the least significant byte comes first. Network protocols and many file formats use <em>big-endian</em>: the most significant byte first. A binary file written on one architecture may produce garbage when read on another.",
+                    points: [
+                        "<strong>Little-endian (x86, ARM default)</strong>: The integer 0x01020304 is stored in memory as bytes <code>04 03 02 01</code> — least significant byte at the lowest address.",
+                        "<strong>Big-endian (network byte order)</strong>: The same integer is stored as <code>01 02 03 04</code> — most significant byte first. JPEG, PNG, and network packets use this.",
+                        "<strong>Detecting endianness at runtime</strong>: Write the integer 1 and check whether the first byte is 1 (little-endian) or 0 (big-endian).",
+                        "<strong>The fix: serialize field by field with known byte order</strong>: Write each field using bit shifts, not <code>fwrite(&value)</code>. This produces the same bytes on every architecture."
+                    ],
+                    code: `#include <stdio.h>
+#include <stdint.h>
+
+// Portable little-endian write for uint32_t — works on any CPU
+void writeU32LE(FILE *f, uint32_t val) {
+    uint8_t bytes[4] = {
+        (uint8_t)(val),        // least significant byte first
+        (uint8_t)(val >> 8),
+        (uint8_t)(val >> 16),
+        (uint8_t)(val >> 24),
+    };
+    fwrite(bytes, 1, 4, f);
+}
+
+// Portable little-endian read for uint32_t
+uint32_t readU32LE(FILE *f) {
+    uint8_t bytes[4];
+    fread(bytes, 1, 4, f);
+    return (uint32_t)bytes[0]
+         | (uint32_t)bytes[1] << 8
+         | (uint32_t)bytes[2] << 16
+         | (uint32_t)bytes[3] << 24;
+}
+
+int main(void) {
+    // Detect host endianness
+    uint32_t test = 1;
+    uint8_t *p = (uint8_t *)&test;
+    printf("This machine is %s-endian\\n", p[0] == 1 ? "little" : "big");
+
+    // Write a portable binary file
+    FILE *f = fopen("data.bin", "wb");
+    writeU32LE(f, 0xDEADBEEF);
+    writeU32LE(f, 12345678);
+    fclose(f);
+
+    // Read it back correctly on any machine
+    f = fopen("data.bin", "rb");
+    printf("Read: 0x%08X\\n", readU32LE(f));  // Always 0xDEADBEEF
+    printf("Read: %u\\n",     readU32LE(f));   // Always 12345678
+    fclose(f);
+    return 0;
+}`,
+                    output: "This machine is little-endian\nRead: 0xDEADBEEF\nRead: 12345678"
                 },
                 {
                     title: "Random File Access (fseek / ftell / rewind)",

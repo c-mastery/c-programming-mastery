@@ -349,7 +349,7 @@ int main() {
     return 0;
 }`,
                     output: "Count: 1\nCount: 2\nCount: 3",
-                    tip: "Without <code>static</code>, <code>count</code> would be re-created as 0 every time <code>counter()</code> is called, printing '1, 1, 1'. <code>static</code> on a global variable or function restricts visibility to the current file only — a useful encapsulation tool in multi-file projects."
+                    tip: "Without <code>static</code>, <code>count</code> would be re-created as 0 every time <code>counter()</code> is called, printing '1, 1, 1'. The <code>static</code> keyword has two completely different meanings depending on where it appears — beginners constantly confuse them: (1) <strong>static on a local variable</strong>: the variable persists between function calls instead of being recreated each time. (2) <strong>static on a global variable or function</strong>: restricts its visibility to the current <code>.c</code> file only — other files cannot see or link to it. Same keyword, opposite contexts, no relationship between the two behaviors. When you see <code>static</code>, ask: is it on a local variable (persistent) or a file-scope symbol (private)?"
                 },
                 {
                     title: "Extern",
@@ -591,6 +591,45 @@ int main() {
             explanation: "Every program we've written so far lives in a single <code>.c</code> file. That's fine for learning, but falls apart fast when a program grows. Past a few hundred lines, a single-file program becomes impossible to navigate and reason about. Real software splits code across dozens or hundreds of files — each file handles one coherent area of responsibility: all the math functions, all the string processing, all the network code. The C compiler processes one <code>.c</code> file at a time, producing one <code>.o</code> object file per source file, and the linker combines them. This model is simple and fast — only changed files need recompiling — but it has strict rules: the compiler must see at least a declaration of every function before you call it. Header files are the mechanism for sharing those declarations.",
             sections: [
                 {
+                    title: "Building Multi-File Projects: Makefiles",
+                    content: "Running <code>gcc file1.c file2.c file3.c -o program</code> works for three files. At thirty files it becomes unmanageable, and it recompiles every file even when only one changed. <code>make</code> solves both problems: it reads a <code>Makefile</code> that describes how to build each file and only rebuilds what has changed. Every serious C project uses one. You will encounter Makefiles on day one of any real codebase.",
+                    points: [
+                        "<strong>Target: prerequisites</strong>: A Makefile rule says 'to build <em>target</em>, you need <em>prerequisites</em>, and run these <em>commands</em>'. If all prerequisites are older than the target, make skips the rule.",
+                        "<strong>Automatic variables</strong>: <code>$@</code> is the target name. <code>$^</code> is all prerequisites. <code>$<</code> is the first prerequisite. These are used inside the command.",
+                        "<strong>Phony targets</strong>: Targets that aren't files — like <code>clean</code> — should be declared with <code>.PHONY</code> so make doesn't confuse them with actual files.",
+                        "<strong>Separate compilation</strong>: Compile each <code>.c</code> to a <code>.o</code> object file separately. Link all <code>.o</code> files at the end. Only changed <code>.c</code> files recompile."
+                    ],
+                    code: `# Makefile — place this file in your project root, named exactly 'Makefile'
+# Run with: make          (builds the program)
+#           make clean    (removes built files)
+
+CC      = gcc
+CFLAGS  = -std=c23 -Wall -Wextra -Werror
+TARGET  = myprogram
+SRCS    = main.c utils.c math_helpers.c
+OBJS    = $(SRCS:.c=.o)   # Replace .c with .o for each source file
+
+# Default target: build the executable from all object files
+$(TARGET): $(OBJS)
+\t$(CC) $(CFLAGS) -o $@ $^
+
+# Pattern rule: how to compile any .c file into a .o file
+%.o: %.c
+\t$(CC) $(CFLAGS) -c -o $@ $
+
+# Phony targets don't correspond to real files
+.PHONY: clean
+clean:
+\trm -f $(OBJS) $(TARGET)
+
+# ----- Project layout this assumes -----
+# main.c          — contains main()
+# utils.c         — utility functions
+# utils.h         — declarations for utils.c
+# math_helpers.c  — math functions
+# math_helpers.h  — declarations for math_helpers.c`
+                },
+                {
                     title: "Translation Units",
                     content: "The C compiler processes one <code>.c</code> file at a time. Each file it processes is called a <strong>translation unit</strong>. The compiler has no idea what's in your other <code>.c</code> files while it's compiling any particular one. It only knows about functions and variables you've declared visible to it. This is why you get 'implicit declaration of function' warnings — the compiler hit a function call before seeing any declaration of that function.",
                     points: [
@@ -714,6 +753,130 @@ int get_count() {
 // log_change(1, 2);    // LINKER ERROR: 'log_change' is static, invisible
 // increment();         // Fine: increment() is public
 // get_count();         // Fine: get_count() is public`
+                }
+            ]
+        },
+        {
+            id: "error-handling-patterns",
+            title: "Error Handling Patterns",
+            explanation: "C has no exceptions. When something goes wrong — a file doesn't exist, malloc runs out of memory, a value is out of range — you need a strategy for propagating that failure to the caller without making every function an unreadable nest of if-statements. Professional C code uses a small number of well-established patterns, and knowing which pattern fits which situation is a practical skill. Inconsistent error handling is one of the leading causes of resource leaks and security bugs in C codebases.",
+            sections: [
+                {
+                    title: "Sentinel Return Values",
+                    content: "The most common pattern: the function returns a special value on failure. <code>NULL</code> for pointer-returning functions. <code>-1</code> or a negative value for integer-returning functions. <code>0</code> or non-zero depending on convention. The caller must check the return value before using it. This pattern is used by virtually every standard library function.",
+                    points: [
+                        "<strong>Pointer functions</strong>: Return <code>NULL</code> on failure. <code>fopen</code>, <code>malloc</code>, <code>strstr</code> all use this. Always check before dereferencing.",
+                        "<strong>Integer functions</strong>: Return <code>-1</code> or a negative error code on failure. POSIX system calls use this convention universally. Pair with <code>errno</code> for the specific reason.",
+                        "<strong>The limitation</strong>: The sentinel value must be outside the valid output range. If every integer is a valid return value, there is no sentinel available — you need a different pattern."
+                    ],
+                    code: `#include <stdio.h>
+#include <stdlib.h>
+
+// Returns NULL on failure — caller must check
+int *allocateArray(int size) {
+    if (size <= 0) return NULL;          // Validate input
+    int *arr = malloc(size * sizeof(int));
+    return arr;                          // NULL if malloc failed
+}
+
+// Returns -1 on failure
+int parseInt(const char *s, int *out) {
+    if (!s || !out) return -1;
+    char *end;
+    long val = strtol(s, &end, 10);
+    if (end == s || *end != '\\0') return -1;  // Not a valid integer
+    *out = (int)val;
+    return 0;  // Success
+}
+
+int main(void) {
+    int *arr = allocateArray(10);
+    if (!arr) { fprintf(stderr, "Allocation failed\\n"); return 1; }
+
+    int value;
+    if (parseInt("42", &value) == 0)
+        printf("Parsed: %d\\n", value);
+    if (parseInt("abc", &value) != 0)
+        printf("Parse failed (expected)\\n");
+
+    free(arr);
+    return 0;
+}`                },
+                {
+                    title: "Output Parameters for Multiple Results",
+                    content: "When a function needs to return both a success/failure indicator AND a result value, use an output parameter: pass a pointer to the variable that should receive the result, and return the error code separately. This is the pattern used by <code>scanf</code>, POSIX APIs, and most system-level C code.",
+                    code: `#include <stdio.h>
+#include <math.h>
+#include <errno.h>
+
+// Error code returned, result written through pointer
+int safeSqrt(double x, double *result) {
+    if (x < 0.0) return -1;  // Error: can't sqrt negative
+    *result = sqrt(x);
+    return 0;  // Success
+}
+
+int divide(int a, int b, int *result) {
+    if (b == 0) return -1;
+    *result = a / b;
+    return 0;
+}
+
+int main(void) {
+    double r;
+    if (safeSqrt(16.0, &r) == 0) printf("sqrt(16) = %.1f\\n", r);
+    if (safeSqrt(-1.0, &r) != 0) printf("sqrt(-1) failed (expected)\\n");
+
+    int q;
+    if (divide(10, 2, &q) == 0) printf("10/2 = %d\\n", q);
+    if (divide(10, 0, &q) != 0) printf("10/0 failed (expected)\\n");
+    return 0;
+}`,
+                    output: "sqrt(16) = 4.0\nsqrt(-1) failed (expected)\n10/2 = 5\n10/0 failed (expected)"
+                },
+                {
+                    title: "goto for Cleanup (The One Legitimate Use)",
+                    content: "When a function acquires multiple resources — opens a file, allocates memory, locks a mutex — and then hits an error midway, you need to release everything acquired so far. Deeply nested if-else chains for this purpose are the most common cause of resource leaks in C. The <code>goto</code> cleanup pattern is the accepted solution: a single cleanup label at the end of the function, jumped to from any error path.",
+                    code: `#include <stdio.h>
+#include <stdlib.h>
+#include <string.h>
+
+int processFile(const char *path) {
+    int   result = -1;        // Assume failure
+    FILE *f      = NULL;
+    char *buf    = NULL;
+
+    f = fopen(path, "r");
+    if (!f) { perror("fopen"); goto cleanup; }
+
+    buf = malloc(1024);
+    if (!buf) { perror("malloc"); goto cleanup; }
+
+    // ... do actual work with f and buf ...
+    if (fgets(buf, 1024, f))
+        printf("First line: %s", buf);
+
+    result = 0;  // Success
+
+cleanup:          // Always reached, releases whatever was acquired
+    free(buf);    // free(NULL) is safe — no double-free risk
+    if (f) fclose(f);
+    return result;
+}
+
+int main(void) {
+    // Test with a file that exists
+    FILE *tmp = fopen("test.txt", "w");
+    if (tmp) { fputs("hello\\n", tmp); fclose(tmp); }
+
+    int r = processFile("test.txt");
+    printf("Result: %d\\n", r);
+
+    r = processFile("nonexistent.txt");
+    printf("Result: %d\\n", r);
+    return 0;
+}`,
+                    tip: "This is the pattern Linus Torvalds explicitly endorses for kernel code. The rule: <code>goto</code> only jumps forward, only to a cleanup label, and only once per function. Every resource is initialized to a safe 'nothing acquired' state before any acquisition attempt, so the cleanup code is always safe to run."
                 }
             ]
         },
